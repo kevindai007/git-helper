@@ -1,0 +1,8 @@
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+
+gitlab:
+    url: ${GITLAB_URL}
+    token: ${GITLAB_TOKEN}
