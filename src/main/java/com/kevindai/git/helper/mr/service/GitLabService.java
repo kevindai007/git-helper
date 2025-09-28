@@ -103,6 +103,16 @@ public class GitLabService {
         return exact.orElse(projects[0]).getId();
     }
 
+    public MrDetail fetchMrDetails(long projectId, int mrId) {
+        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}
+        return restClient.get().uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
+                .accept(MediaType.APPLICATION_JSON)
+                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .retrieve()
+                .body(MrDetail.class);
+
+    }
+
     public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
         // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}/diffs
         MrDiff[] diffs = restClient.get()
@@ -150,6 +160,21 @@ public class GitLabService {
         private long id;
         private String name;
         private String path;
+    }
+
+
+    @Data
+    public static class MrDetail {
+        private long id;
+        private long project_id;
+        private long iid;
+        private String title;
+        private String state;
+        private String target_branch;
+        private String source_branch;
+        private String sha;
+        private String web_url;
+
     }
 
     @Data
