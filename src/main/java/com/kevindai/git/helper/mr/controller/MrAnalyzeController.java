@@ -27,7 +27,7 @@ public class MrAnalyzeController {
             long projectId = gitLabService.fetchProjectId(groupId, parsed.getProjectPath());
             var diffs = gitLabService.fetchMrDiffs(projectId, parsed.getMrId());
             String formatted = gitLabService.formatDiffs(diffs);
-            String analysis = llmAnalysisService.analyzeDiff(formatted);
+            String analysis = llmAnalysisService.analyzeDiff(formatted, diffs);
             return MrAnalyzeResponse.builder()
                     .status("success")
                     .mrUrl(req.getMrUrl())
