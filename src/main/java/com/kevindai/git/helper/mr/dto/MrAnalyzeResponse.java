@@ -6,9 +6,8 @@ import lombok.Data;
 @Data
 @Builder
 public class MrAnalyzeResponse {
-    private String status; // success | failure
+    private AnalysisStatus status;
     private String mrUrl;
     private String analysisResult; // LLM result text
     private String errorMessage;   // optional on failure
 }
-

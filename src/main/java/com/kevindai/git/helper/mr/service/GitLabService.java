@@ -1,7 +1,11 @@
 package com.kevindai.git.helper.mr.service;
 
-import com.kevindai.git.helper.confg.GitConfig;
-import lombok.Data;
+import com.kevindai.git.helper.config.GitConfig;
+import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
+import com.kevindai.git.helper.mr.dto.gitlab.Namespace;
+import com.kevindai.git.helper.mr.dto.gitlab.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -131,7 +135,7 @@ public class GitLabService {
         StringBuilder sb = new StringBuilder();
         for (MrDiff d : diffs) {
             String file = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : "<unknown>";
-            sb.append("--- 文件: ").append(file).append(" ---\n");
+            sb.append("--- File: ").append(file).append(" ---\n");
             if (d.getDiff() != null) {
                 sb.append(d.getDiff()).append("\n");
             }
@@ -139,54 +143,4 @@ public class GitLabService {
         }
         return sb.toString();
     }
-
-    @Data
-    public static class ParsedMrUrl {
-        private String groupPath;
-        private String projectPath;
-        private int mrId;
-    }
-
-    @Data
-    public static class Namespace {
-        private long id;
-        private String path;
-        private String full_path;
-        private String kind;
-    }
-
-    @Data
-    public static class Project {
-        private long id;
-        private String name;
-        private String path;
-    }
-
-
-    @Data
-    public static class MrDetail {
-        private long id;
-        private long project_id;
-        private long iid;
-        private String title;
-        private String state;
-        private String target_branch;
-        private String source_branch;
-        private String sha;
-        private String web_url;
-
-    }
-
-    @Data
-    public static class MrDiff {
-        private String old_path;
-        private String new_path;
-        private String a_mode;
-        private String b_mode;
-        private boolean new_file;
-        private boolean renamed_file;
-        private boolean deleted_file;
-        private String diff; // unified diff format
-    }
 }
-

@@ -37,7 +37,8 @@ public class LlmAnalysisService {
 
     public String analyzeDiff(String formattedDiffContent) {
         return chatClient
-                .prompt(SYSTEM_PROMPT)
+                .prompt()
+                .system(SYSTEM_PROMPT)
                 .user(formattedDiffContent)
                 .call()
                 .chatResponse()
@@ -47,4 +48,3 @@ public class LlmAnalysisService {
                 .getText();
     }
 }
-

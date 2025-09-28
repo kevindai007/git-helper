@@ -1,8 +1,10 @@
 package com.kevindai.git.helper.mr.service;
 
 import com.kevindai.git.helper.entity.MrInfoEntity;
+import com.kevindai.git.helper.mr.dto.AnalysisStatus;
 import com.kevindai.git.helper.mr.dto.MrAnalyzeRequest;
 import com.kevindai.git.helper.mr.dto.MrAnalyzeResponse;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +25,7 @@ public class MrAnalyzeService {
         var parsed = gitLabService.parseMrUrl(req.getMrUrl());
         long groupId = gitLabService.fetchGroupId(parsed.getGroupPath());
         long projectId = gitLabService.fetchProjectId(groupId, parsed.getProjectPath());
-        GitLabService.MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsed.getMrId());
+        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsed.getMrId());
         if (mrDetail == null) {
             throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsed.getMrId());
         }
@@ -33,7 +35,7 @@ public class MrAnalyzeService {
             if (existing.getSha() != null && existing.getSha().equals(mrDetail.getSha()) && StringUtils.hasText(existing.getAnalysisResult())) {
                 log.info("MR unchanged, skip analysis. projectId={}, mrId={}, sha={}", projectId, parsed.getMrId(), mrDetail.getSha());
                 return MrAnalyzeResponse.builder()
-                        .status("no_change")
+                        .status(AnalysisStatus.SUCCESS)
                         .mrUrl(req.getMrUrl())
                         .analysisResult(existing.getAnalysisResult())
                         .build();
@@ -62,13 +64,13 @@ public class MrAnalyzeService {
         });
 
         return MrAnalyzeResponse.builder()
-                .status("success")
+                .status(AnalysisStatus.SUCCESS)
                 .mrUrl(req.getMrUrl())
                 .analysisResult(analysis)
                 .build();
     }
 
-    private MrInfoEntity converter(GitLabService.MrDetail mrDetail) {
+    private MrInfoEntity converter(MrDetail mrDetail) {
         if (mrDetail == null) {
             return null;
         }
