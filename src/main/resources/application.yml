@@ -10,3 +10,6 @@ spring:
 gitlab:
     url: ${GITLAB_URL}
     token: ${GITLAB_TOKEN}
+server:
+  servlet:
+    context-path: /r100/git-helper
