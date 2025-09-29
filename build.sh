@@ -4,7 +4,7 @@
 set -e
 
 SNIPPET_ID=1
-BASE_URL="https://gitlab.nationalcloud.ae/-/snippets/4/raw/main"
+BASE_URL="https://gitlab-ultimate.nationalcloud.ae/-/snippets/4/raw/main"
 
 mkdir -p maven-build
 
