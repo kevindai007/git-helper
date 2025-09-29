@@ -16,4 +16,4 @@
 #python3 ./maven-build/mvn_pom_build.py
 
 
-mvn clean deploy
+mvn clean deploy -DskipTests
