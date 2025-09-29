@@ -1,0 +1,15 @@
+<settings>
+    <servers>
+        <server>
+            <id>r100-releases</id>
+            <username>${env.NEXUS_USERNAME}</username> <!-- Environment variable for username -->
+            <password>${env.NEXUS_PASSWORD}</password> <!-- Environment variable for password -->
+        </server>
+
+        <server>
+            <id>r100-snapshots</id>
+            <username>${env.NEXUS_USERNAME}</username> <!-- Environment variable for username -->
+            <password>${env.NEXUS_PASSWORD}</password> <!-- Environment variable for password -->
+        </server>
+    </servers>
+</settings>
