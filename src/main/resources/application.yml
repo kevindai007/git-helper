@@ -1,7 +1,11 @@
 spring:
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_CHAT_BASE_URL:https://llm.waha.ai/qwen3-30b-thinking}
+      chat:
+        options:
+          model: Qwen/Qwen3-30B-A3B-Thinking-2507
 
 gitlab:
     url: ${GITLAB_URL}

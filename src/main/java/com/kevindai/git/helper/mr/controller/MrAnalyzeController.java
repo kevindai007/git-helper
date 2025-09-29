@@ -23,7 +23,7 @@ public class MrAnalyzeController {
     public MrAnalyzeResponse analyze(@RequestBody MrAnalyzeRequest req) {
         try {
             var parsed = gitLabService.parseMrUrl(req.getMrUrl());
-            long groupId = gitLabService.fetchGroupId(parsed.getGroupPath());
+            long groupId = gitLabService.fetchGroupId(parsed);
             long projectId = gitLabService.fetchProjectId(groupId, parsed.getProjectPath());
             var diffs = gitLabService.fetchMrDiffs(projectId, parsed.getMrId());
             String formatted = gitLabService.formatDiffs(diffs);

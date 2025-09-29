@@ -1,5 +1,11 @@
 package com.kevindai.git.helper.mr.service;
 
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import com.kevindai.git.helper.confg.GitConfig;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -7,12 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
-
-import java.net.URI;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,12 +23,13 @@ public class GitLabService {
     private final RestClient restClient = RestClient.create();
 
     public ParsedMrUrl parseMrUrl(String mrUrl) {
-        // Expected: https://gitlab.com/<groupPath>/<projectPath>/-/merge_requests/<mrId>
+        // Format: https://<host>/<namespace full path>/<project>/-/merge_requests/<mrId>
+        // Example: https://gitlab-ultimate.nationalcloud.ae/presight/r100/platform/r100-task-api/-/merge_requests/541
         try {
             URI uri = URI.create(mrUrl);
             String[] parts = uri.getPath().split("/");
-            // [ , <group...>, <project>, -, merge_requests, <id> ]
-            if (parts.length < 6) {
+            // parts example: ["", "presight", "r100", "platform", "r100-task-api", "-", "merge_requests", "541"]
+            if (parts.length < 7) {
                 throw new IllegalArgumentException("Invalid MR URL format");
             }
             int dashIdx = -1;
@@ -39,24 +40,26 @@ public class GitLabService {
                 }
             }
             if (dashIdx < 0 || dashIdx + 2 >= parts.length) {
-                throw new IllegalArgumentException("Invalid MR URL format (missing -/merge_requests)");
+                throw new IllegalArgumentException("Invalid MR URL format (missing -/merge_requests/<id>)");
             }
             if (!"merge_requests".equals(parts[dashIdx + 1])) {
-                throw new IllegalArgumentException("Invalid MR URL: not a merge_request path");
+                throw new IllegalArgumentException("Invalid MR URL: not a merge_requests path");
             }
-            String mrIdStr = parts[dashIdx + 2];
-            int mrId = Integer.parseInt(mrIdStr);
-
-            // group path may be multi-segment between index 1 and last project index-1
             int projectIdx = dashIdx - 1;
             if (projectIdx <= 1) {
                 throw new IllegalArgumentException("Invalid MR URL: cannot infer project path");
             }
             String projectPath = parts[projectIdx];
-            String groupPath = String.join("/", Arrays.asList(parts).subList(1, projectIdx));
+            String groupPath = parts[projectIdx - 1]; // namespace name (last segment before project)
+            if (projectIdx - 1 < 1) {
+                throw new IllegalArgumentException("Invalid MR URL: cannot infer namespace");
+            }
+            String groupFullPath = String.join("/", Arrays.asList(parts).subList(1, projectIdx)); // full namespace path
+            int mrId = Integer.parseInt(parts[dashIdx + 2]);
 
             ParsedMrUrl parsed = new ParsedMrUrl();
             parsed.setGroupPath(groupPath);
+            parsed.setGroupFullPath(groupFullPath);
             parsed.setProjectPath(projectPath);
             parsed.setMrId(mrId);
             return parsed;
@@ -65,21 +68,21 @@ public class GitLabService {
         }
     }
 
-    public long fetchGroupId(String groupPath) {
+    public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
         // GET /namespaces?search={GROUP_PATH}
         Namespace[] namespaces = restClient.get()
-                .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", groupPath))
+                .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
                 .accept(MediaType.APPLICATION_JSON)
                 .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(Namespace[].class);
 
         if (namespaces == null || namespaces.length == 0) {
-            throw new IllegalStateException("Group not found: " + groupPath);
+            throw new IllegalStateException("Group not found: " + parsedMrUrl.getGroupPath());
         }
 
         Optional<Namespace> exact = Arrays.stream(namespaces)
-                .filter(ns -> groupPath.equals(ns.getFull_path()) || groupPath.equals(ns.getPath()))
+                .filter(ns -> parsedMrUrl.getGroupFullPath().equals(ns.getFull_path()))
                 .findFirst();
         return exact.orElse(namespaces[0]).getId();
     }
@@ -132,13 +135,16 @@ public class GitLabService {
 
     @Data
     public static class ParsedMrUrl {
-        private String groupPath;
-        private String projectPath;
+
+        private String groupPath;       // namespace name (last segment)
+        private String groupFullPath;   // namespace full path
+        private String projectPath;     // project/app name
         private int mrId;
     }
 
     @Data
     public static class Namespace {
+
         private long id;
         private String path;
         private String full_path;
@@ -147,6 +153,7 @@ public class GitLabService {
 
     @Data
     public static class Project {
+
         private long id;
         private String name;
         private String path;
@@ -154,6 +161,7 @@ public class GitLabService {
 
     @Data
     public static class MrDiff {
+
         private String old_path;
         private String new_path;
         private String a_mode;
