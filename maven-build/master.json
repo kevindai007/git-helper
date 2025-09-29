@@ -1,0 +1,12 @@
+{
+  "deploy_module": [{
+    "path" : "./"
+  }],
+  "dependency": [
+    {
+      "group_id": "ae.nationalcloud",
+      "artifact_id": "*",
+      "version": "master-SNAPSHOT"
+    }
+  ]
+}
