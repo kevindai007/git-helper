@@ -178,4 +178,3 @@ Response Body example (failure):
   "errorMessage": "Error message (e.g., Group not found ...)"
 }
 ```
-
