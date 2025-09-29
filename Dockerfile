@@ -1,7 +1,7 @@
 FROM swr.ae-ad-1.g42cloud.com/r100/eclipse-temurin:21_35-jdk
 
 # Specify the JAR file
-ENV APP_JAR_FILE git helper/target/git-helper-*.jar
+ENV APP_JAR_FILE git-helper/target/git-helper-*.jar
 
 # Set default locale
 ENV LC_ALL en_US.UTF-8
