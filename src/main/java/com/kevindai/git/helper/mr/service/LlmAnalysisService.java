@@ -2,6 +2,8 @@ package com.kevindai.git.helper.mr.service;
 
 import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
 import com.kevindai.git.helper.mr.prompt.GeneralBestPractice;
+import com.kevindai.git.helper.mr.prompt.PromptProvider;
+import com.kevindai.git.helper.mr.prompt.PromptType;
 import com.kevindai.git.helper.mr.prompt.strategy.MrContext;
 import com.kevindai.git.helper.mr.prompt.strategy.PromptStrategy;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ public class LlmAnalysisService {
 
     private final ChatClient chatClient;
     private final List<PromptStrategy> strategies;
+    private final PromptProvider promptProvider;
 
 
     public String analyzeDiff(String formattedDiffContent, List<MrDiff> diffs) {
@@ -46,9 +49,9 @@ public class LlmAnalysisService {
         strategies.forEach(s -> {
             try {
                 double sc = s.score(ctx);
-                log.debug("Prompt strategy '{}' score: {}", s.id(), sc);
+                log.debug("Prompt type '{}' score: {}", s.type(), sc);
             } catch (Exception e) {
-                log.warn("Scoring error in strategy {}: {}", s.id(), e.getMessage());
+                log.warn("Scoring error in strategy {}: {}", s.getClass().getSimpleName(), e.getMessage());
             }
         });
 
@@ -59,8 +62,9 @@ public class LlmAnalysisService {
         if (best == null) {
             return GeneralBestPractice.SYSTEM_PROMPT;
         }
-        String chosen = best.systemPrompt(ctx);
-        log.info("Selected prompt strategy: {}", best.id());
-        return chosen;
+        PromptType chosenType = best.type();
+        String prompt = promptProvider.get(chosenType);
+        log.info("Selected prompt type: {}", chosenType);
+        return prompt;
     }
 }

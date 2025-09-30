@@ -65,4 +65,3 @@ class StrategySelectionTest {
         assertTrue(generic.score(ctx) > 0.0, "Generic should have minimal positive score");
     }
 }
-

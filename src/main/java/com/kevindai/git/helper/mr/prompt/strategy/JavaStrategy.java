@@ -1,6 +1,6 @@
 package com.kevindai.git.helper.mr.prompt.strategy;
 
-import com.kevindai.git.helper.mr.prompt.JavaBestPractice;
+import com.kevindai.git.helper.mr.prompt.PromptType;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
@@ -15,15 +15,13 @@ public class JavaStrategy implements PromptStrategy {
     }
 
     @Override
-    public String id() { return "java"; }
+    public PromptType type() {
+        return PromptType.JAVA;
+    }
 
     @Override
     public double score(MrContext context) {
         return scoreCalculator.scoreForExtensions(context, EXTS);
     }
 
-    @Override
-    public String systemPrompt(MrContext context) {
-        return JavaBestPractice.SYSTEM_PROMPT;
-    }
 }

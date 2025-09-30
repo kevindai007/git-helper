@@ -1,6 +1,6 @@
 package com.kevindai.git.helper.mr.prompt.strategy;
 
-import com.kevindai.git.helper.mr.prompt.PythonBestPractice;
+import com.kevindai.git.helper.mr.prompt.PromptType;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
@@ -15,15 +15,13 @@ public class PythonStrategy implements PromptStrategy {
     }
 
     @Override
-    public String id() { return "python"; }
+    public PromptType type() {
+        return PromptType.PYTHON;
+    }
 
     @Override
     public double score(MrContext context) {
         return scoreCalculator.scoreForExtensions(context, EXTS);
     }
 
-    @Override
-    public String systemPrompt(MrContext context) {
-        return PythonBestPractice.SYSTEM_PROMPT;
-    }
 }

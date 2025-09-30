@@ -1,29 +1,25 @@
 package com.kevindai.git.helper.mr.prompt.strategy;
 
+import com.kevindai.git.helper.mr.prompt.PromptType;
+
 /**
- * Strategy for selecting a system prompt based on MR context.
+ * Strategy to compute a relevance score for a prompt type based on MR context.
  */
 public interface PromptStrategy {
 
     /**
-     * Unique identifier for the strategy (e.g., "generic", "java", "python", "javascript").
+     * The prompt type/category this strategy represents.
      */
-    String id();
+    PromptType type();
 
     /**
-     * Compute a relevance score for this strategy given the MR context.
-     * Higher score means the strategy is a better fit.
+     * Compute a relevance score for this type given the MR context.
+     * Higher score means the type is a better fit.
      */
     double score(MrContext context);
-
-    /**
-     * Return the system prompt to use when this strategy is selected.
-     */
-    String systemPrompt(MrContext context);
 
     /**
      * Whether this strategy supports hybrid composition with another strategy.
      */
     default boolean supportsHybrid() { return false; }
 }
-
