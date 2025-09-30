@@ -1,7 +1,11 @@
 package com.kevindai.git.helper.mr.service;
 
-import com.kevindai.git.helper.confg.GitConfig;
-import lombok.Data;
+import com.kevindai.git.helper.config.GitConfig;
+import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
+import com.kevindai.git.helper.mr.dto.gitlab.Namespace;
+import com.kevindai.git.helper.mr.dto.gitlab.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -103,6 +107,16 @@ public class GitLabService {
         return exact.orElse(projects[0]).getId();
     }
 
+    public MrDetail fetchMrDetails(long projectId, int mrId) {
+        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}
+        return restClient.get().uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
+                .accept(MediaType.APPLICATION_JSON)
+                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .retrieve()
+                .body(MrDetail.class);
+
+    }
+
     public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
         // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}/diffs
         MrDiff[] diffs = restClient.get()
@@ -121,7 +135,7 @@ public class GitLabService {
         StringBuilder sb = new StringBuilder();
         for (MrDiff d : diffs) {
             String file = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : "<unknown>";
-            sb.append("--- 文件: ").append(file).append(" ---\n");
+            sb.append("--- File: ").append(file).append(" ---\n");
             if (d.getDiff() != null) {
                 sb.append(d.getDiff()).append("\n");
             }
@@ -129,39 +143,4 @@ public class GitLabService {
         }
         return sb.toString();
     }
-
-    @Data
-    public static class ParsedMrUrl {
-        private String groupPath;
-        private String projectPath;
-        private int mrId;
-    }
-
-    @Data
-    public static class Namespace {
-        private long id;
-        private String path;
-        private String full_path;
-        private String kind;
-    }
-
-    @Data
-    public static class Project {
-        private long id;
-        private String name;
-        private String path;
-    }
-
-    @Data
-    public static class MrDiff {
-        private String old_path;
-        private String new_path;
-        private String a_mode;
-        private String b_mode;
-        private boolean new_file;
-        private boolean renamed_file;
-        private boolean deleted_file;
-        private String diff; // unified diff format
-    }
 }
-
