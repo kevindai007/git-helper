@@ -22,18 +22,18 @@ public class MrAnalyzeService {
     private final MrInfoEntityRepository mrInfoEntityRepository;
 
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
-        var parsed = gitLabService.parseMrUrl(req.getMrUrl());
-        long groupId = gitLabService.fetchGroupId(parsed.getGroupPath());
-        long projectId = gitLabService.fetchProjectId(groupId, parsed.getProjectPath());
-        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsed.getMrId());
+        var parsedUrl = gitLabService.parseMrUrl(req.getMrUrl());
+        long groupId = gitLabService.fetchGroupId(parsedUrl);
+        long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
+        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
         if (mrDetail == null) {
-            throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsed.getMrId());
+            throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
         }
-        var existingOpt = mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsed.getMrId());
+        var existingOpt = mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsedUrl.getMrId());
         if (existingOpt.isPresent()) {
             MrInfoEntity existing = existingOpt.get();
             if (existing.getSha() != null && existing.getSha().equals(mrDetail.getSha()) && StringUtils.hasText(existing.getAnalysisResult())) {
-                log.info("MR unchanged, skip analysis. projectId={}, mrId={}, sha={}", projectId, parsed.getMrId(), mrDetail.getSha());
+                log.info("MR unchanged, skip analysis. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
                 return MrAnalyzeResponse.builder()
                         .status(AnalysisStatus.SUCCESS)
                         .mrUrl(req.getMrUrl())
@@ -46,18 +46,18 @@ public class MrAnalyzeService {
             updated.setCreatedAt(existing.getCreatedAt());
             mrInfoEntityRepository.save(updated);
             log.info("MR updated due to sha change. projectId={}, mrId={}, oldSha={}, newSha={}",
-                    projectId, parsed.getMrId(), existing.getSha(), mrDetail.getSha());
+                    projectId, parsedUrl.getMrId(), existing.getSha(), mrDetail.getSha());
         } else {
             // not exist -> insert
             MrInfoEntity newEntity = converter(mrDetail);
             mrInfoEntityRepository.save(newEntity);
-            log.info("MR inserted. projectId={}, mrId={}, sha={}", projectId, parsed.getMrId(), mrDetail.getSha());
+            log.info("MR inserted. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
         }
 
-        var diffs = gitLabService.fetchMrDiffs(projectId, parsed.getMrId());
+        var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
         String formatted = gitLabService.formatDiffs(diffs);
-        String analysis = llmAnalysisService.analyzeDiff(formatted);
-        mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsed.getMrId()).ifPresent(entity -> {
+        String analysis = llmAnalysisService.analyzeDiff(formatted, diffs);
+        mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsedUrl.getMrId()).ifPresent(entity -> {
             entity.setAnalysisResult(analysis);
             entity.setUpdatedAt(Instant.now());
             mrInfoEntityRepository.save(entity);

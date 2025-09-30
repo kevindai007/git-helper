@@ -26,42 +26,49 @@ public class GitLabService {
 
     private final RestClient restClient = RestClient.create();
 
+    // java
     public ParsedMrUrl parseMrUrl(String mrUrl) {
-        // Expected: https://gitlab.com/<groupPath>/<projectPath>/-/merge_requests/<mrId>
+        // Example URL: https://gitlab.com/group/subgroup/project/-/merge_requests/123
         try {
-            URI uri = URI.create(mrUrl);
-            String[] parts = uri.getPath().split("/");
-            // [ , <group...>, <project>, -, merge_requests, <id> ]
-            if (parts.length < 6) {
-                throw new IllegalArgumentException("Invalid MR URL format");
+            URI uri = URI.create(mrUrl.trim());
+            String rawPath = uri.getPath();
+            if (!StringUtils.hasText(rawPath)) {
+                throw new IllegalArgumentException("Empty path");
             }
+            List<String> parts = Arrays.stream(rawPath.split("/"))
+                    .filter(StringUtils::hasText)
+                    .toList();
+
             int dashIdx = -1;
-            for (int i = 0; i < parts.length; i++) {
-                if ("-".equals(parts[i])) {
+            for (int i = 0; i < parts.size() - 2; i++) {
+                if ("-".equals(parts.get(i)) && "merge_requests".equals(parts.get(i + 1))) {
                     dashIdx = i;
                     break;
                 }
             }
-            if (dashIdx < 0 || dashIdx + 2 >= parts.length) {
-                throw new IllegalArgumentException("Invalid MR URL format (missing -/merge_requests)");
+            if (dashIdx < 0 || dashIdx + 2 >= parts.size()) {
+                throw new IllegalArgumentException("Invalid MR URL pattern");
             }
-            if (!"merge_requests".equals(parts[dashIdx + 1])) {
-                throw new IllegalArgumentException("Invalid MR URL: not a merge_request path");
-            }
-            String mrIdStr = parts[dashIdx + 2];
-            int mrId = Integer.parseInt(mrIdStr);
 
-            // group path may be multi-segment between index 1 and last project index-1
             int projectIdx = dashIdx - 1;
-            if (projectIdx <= 1) {
-                throw new IllegalArgumentException("Invalid MR URL: cannot infer project path");
+            if (projectIdx < 1) {
+                throw new IllegalArgumentException("Cannot determine project path");
             }
-            String projectPath = parts[projectIdx];
-            String groupPath = String.join("/", Arrays.asList(parts).subList(1, projectIdx));
+
+            int mrId = Integer.parseInt(parts.get(dashIdx + 2));
+            String projectPath = parts.get(projectIdx);
+            List<String> groupSegments = parts.subList(0, projectIdx);
+            if (groupSegments.isEmpty()) {
+                throw new IllegalArgumentException("Group path missing");
+            }
+
+            String projectFullPath = String.join("/", groupSegments); // full group hierarchy (no leading slash)
+            String groupPath = groupSegments.get(groupSegments.size() - 1); // immediate parent only
 
             ParsedMrUrl parsed = new ParsedMrUrl();
             parsed.setGroupPath(groupPath);
             parsed.setProjectPath(projectPath);
+            parsed.setProjectFullPath(projectFullPath);
             parsed.setMrId(mrId);
             return parsed;
         } catch (Exception e) {
@@ -69,21 +76,22 @@ public class GitLabService {
         }
     }
 
-    public long fetchGroupId(String groupPath) {
+
+    public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
         // GET /namespaces?search={GROUP_PATH}
         Namespace[] namespaces = restClient.get()
-                .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", groupPath))
+                .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
                 .accept(MediaType.APPLICATION_JSON)
                 .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(Namespace[].class);
 
         if (namespaces == null || namespaces.length == 0) {
-            throw new IllegalStateException("Group not found: " + groupPath);
+            throw new IllegalStateException("Group not found: " + parsedMrUrl.getGroupPath());
         }
 
         Optional<Namespace> exact = Arrays.stream(namespaces)
-                .filter(ns -> groupPath.equals(ns.getFull_path()) || groupPath.equals(ns.getPath()))
+                .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()) || parsedMrUrl.getGroupPath().equals(ns.getPath()))
                 .findFirst();
         return exact.orElse(namespaces[0]).getId();
     }

@@ -9,6 +9,7 @@ import lombok.Data;
 public class ParsedMrUrl {
     private String groupPath;
     private String projectPath;
+    private String projectFullPath;
     private int mrId;
 }
 
