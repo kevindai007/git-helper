@@ -1,9 +1,10 @@
 package com.kevindai.git.helper.mr.controller;
 
+import com.kevindai.git.helper.mr.dto.AnalysisStatus;
 import com.kevindai.git.helper.mr.dto.MrAnalyzeRequest;
 import com.kevindai.git.helper.mr.dto.MrAnalyzeResponse;
-import com.kevindai.git.helper.mr.service.GitLabService;
-import com.kevindai.git.helper.mr.service.LlmAnalysisService;
+import com.kevindai.git.helper.mr.service.MrAnalyzeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
