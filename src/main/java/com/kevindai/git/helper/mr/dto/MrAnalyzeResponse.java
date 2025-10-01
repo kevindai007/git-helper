@@ -1,5 +1,6 @@
 package com.kevindai.git.helper.mr.dto;
 
+import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import lombok.Builder;
 import lombok.Data;
 
@@ -8,6 +9,6 @@ import lombok.Data;
 public class MrAnalyzeResponse {
     private AnalysisStatus status;
     private String mrUrl;
-    private String analysisResult; // LLM result text
+    private LlmAnalysisReport analysisResult; // LLM result
     private String errorMessage;   // optional on failure
 }

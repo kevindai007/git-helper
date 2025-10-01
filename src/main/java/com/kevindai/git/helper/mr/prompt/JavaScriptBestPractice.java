@@ -87,5 +87,33 @@ public class JavaScriptBestPractice {
                Reasoning: The current implementation concatenates user input directly into SQL queries, which is a security risk.
 
             **Analysis Focus**: Prefer robust, typed, and maintainable JS/TS with strong async handling, security hygiene, and performance-minded structure. Provide prioritized, actionable improvements with reasoning.
+
+            
+            Output Format (Strict):
+            - Respond with a single JSON object only. No prose, no markdown.
+            - Use these fields exactly. Omit nulls if not applicable.
+            - If no issues: return an empty `findings` array and a brief `summaryMarkdown`.
+
+            Schema:
+            {
+              "schemaVersion": "1.0",
+              "promptType": "JAVASCRIPT",
+              "findings": [
+                {
+                  "id": "string",
+                  "severity": "blocker|high|medium|low|info",
+                  "category": "correctness|performance|security|maintainability|style|docs|tests",
+                  "ruleId": "string",
+                  "title": "string",
+                  "description": "string",
+                  "location": { "file": "path", "startLine": 0, "endLine": 0, "startCol": 0, "endCol": 0 },
+                  "evidence": "string",
+                  "remediation": { "steps": "string", "diff": "unified diff or empty" },
+                  "confidence": 0.0,
+                  "tags": ["string"]
+                }
+              ],
+              "summaryMarkdown": "string"
+            }
             """;
 }

@@ -1,6 +1,7 @@
 package com.kevindai.git.helper.mr.service;
 
 import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
+import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import com.kevindai.git.helper.mr.prompt.GeneralBestPractice;
 import com.kevindai.git.helper.mr.prompt.PromptProvider;
 import com.kevindai.git.helper.mr.prompt.PromptType;
@@ -23,19 +24,13 @@ public class LlmAnalysisService {
     private final List<PromptStrategy> strategies;
     private final PromptProvider promptProvider;
 
-
-    public String analyzeDiff(String formattedDiffContent, List<MrDiff> diffs) {
+    public LlmAnalysisReport analyzeDiff(String formattedDiffContent, List<MrDiff> diffs) {
         String prompt = selectPromptForFiles(diffs);
-//        return chatClient
-//                .prompt(GeneralBestPractice.SYSTEM_PROMPT)
-//                .user(formattedDiffContent)
-//                .call()
-//                .chatResponse()
-//                .getResults()
-//                .getFirst()
-//                .getOutput()
-//                .getText();
-        return "";
+        return chatClient
+                .prompt(prompt)
+                .user(formattedDiffContent)
+                .call()
+                .entity(LlmAnalysisReport.class);
     }
 
     private String selectPromptForFiles(List<MrDiff> diffs) {

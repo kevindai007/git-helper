@@ -5,7 +5,9 @@ import com.kevindai.git.helper.mr.dto.AnalysisStatus;
 import com.kevindai.git.helper.mr.dto.MrAnalyzeRequest;
 import com.kevindai.git.helper.mr.dto.MrAnalyzeResponse;
 import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
+import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
+import com.kevindai.git.helper.utils.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,7 +39,7 @@ public class MrAnalyzeService {
                 return MrAnalyzeResponse.builder()
                         .status(AnalysisStatus.SUCCESS)
                         .mrUrl(req.getMrUrl())
-                        .analysisResult(existing.getAnalysisResult())
+                        .analysisResult(JsonUtils.parseObject(existing.getAnalysisResult(), LlmAnalysisReport.class))
                         .build();
             }
             // sha has changed -> update
@@ -56,9 +58,9 @@ public class MrAnalyzeService {
 
         var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
         String formatted = gitLabService.formatDiffs(diffs);
-        String analysis = llmAnalysisService.analyzeDiff(formatted, diffs);
+        LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(formatted, diffs);
         mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsedUrl.getMrId()).ifPresent(entity -> {
-            entity.setAnalysisResult(analysis);
+            entity.setAnalysisResult(JsonUtils.toJSONString(analysis));
             entity.setUpdatedAt(Instant.now());
             mrInfoEntityRepository.save(entity);
         });
