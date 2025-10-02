@@ -5,5 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MrAnalysisDetailRepository extends JpaRepository<MrAnalysisDetailEntity, Long> {
     void deleteByMrInfoId(Long mrInfoId);
+    java.util.List<MrAnalysisDetailEntity> findByMrInfoId(Long mrInfoId);
 }
-
