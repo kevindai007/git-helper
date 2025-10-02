@@ -116,7 +116,7 @@ public class JavaBestPractice {
                   "category": "correctness|performance|security|maintainability|style|docs|tests",
                   "title": "string",
                   "description": "string",
-                  "location": { "file": "path","lineType":"old_line", "startLine": 0, "endLine": 0, "startCol": 0, "endCol": 0 },
+                  "location": { "file": "path","lineType":"old_line|new_line", "startLine": 0, "endLine": 0, "startCol": 0, "endCol": 0 },
                   "evidence": "string",
                   "remediation": { "steps": "string", "diff": "unified diff or empty" },
                   "confidence": 0.0,
