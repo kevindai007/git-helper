@@ -59,7 +59,7 @@ public class MrAnalyzeService {
         var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
         String formatted = gitLabService.formatDiffs(diffs);
         LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(formatted, diffs);
-        mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsedUrl.getMrId()).ifPresent(entity -> {
+        mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha()).ifPresent(entity -> {
             entity.setAnalysisResult(JsonUtils.toJSONString(analysis));
             entity.setUpdatedAt(Instant.now());
             mrInfoEntityRepository.save(entity);
