@@ -155,6 +155,7 @@ public class GitLabService {
                                    String headSha,
                                    String startSha,
                                    String filePath,
+                                   Integer newLine,
                                    Integer oldLine,
                                    String body) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -164,6 +165,9 @@ public class GitLabService {
         form.add("position[start_sha]", startSha);
         form.add("position[new_path]", filePath);
         form.add("position[old_path]", filePath);
+        if (newLine != null) {
+            form.add("position[new_line]", String.valueOf(newLine));
+        }
         if (oldLine != null) {
             form.add("position[old_line]", String.valueOf(oldLine));
         }

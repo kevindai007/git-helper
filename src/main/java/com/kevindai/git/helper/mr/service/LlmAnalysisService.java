@@ -39,6 +39,8 @@ public class LlmAnalysisService {
                 .entity(LlmAnalysisReport.class);
     }
 
+
+
     public void persistAnalysisDetails(MrInfoEntity mrInfo, LlmAnalysisReport report) {
         if (mrInfo == null || report == null || report.getFindings() == null) {
             return;

@@ -8,6 +8,7 @@ import com.kevindai.git.helper.repository.MrInfoEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -23,6 +24,7 @@ public class MrAdoptService {
     private final MrAnalysisDetailRepository detailRepository;
     private final MrInfoEntityRepository mrInfoRepository;
     private final GitLabService gitLabService;
+    private final LineLocatorService lineLocatorService;
 
     public void adoptRecommendation(long detailId) {
         MrAnalysisDetailEntity detail = detailRepository.findById(detailId)
@@ -46,6 +48,19 @@ public class MrAdoptService {
             throw new IllegalStateException("MR head SHA mismatch. Expected=" + mrInfo.getSha() + ", latest=" + latest.getHead_commit_sha());
         }
 
+        // fetch diffs and find the one for the target file
+        var diffs = gitLabService.fetchMrDiffs(projectId, mrId);
+        var matched = diffs.stream().filter(d -> safeEq(detail.getFile(), d.getNew_path()) || safeEq(detail.getFile(), d.getOld_path())).findFirst()
+                .orElseThrow(() -> new IllegalStateException("No diff found for file: " + detail.getFile()));
+
+        String evidence = detail.getEvidence();
+        if (!StringUtils.hasText(evidence)) {
+            evidence = detail.getTitle();
+        }
+        int located = lineLocatorService.locateNewLine(evidence, matched.getDiff());
+        Integer newLine = located > 0 ? located : null;
+        Integer oldLine = newLine == null ? detail.getStartLine() : null;
+
         gitLabService.createMrDiscussion(
                 projectId,
                 mrId,
@@ -53,7 +68,8 @@ public class MrAdoptService {
                 latest.getHead_commit_sha(),
                 latest.getStart_commit_sha(),
                 detail.getFile(),
-                detail.getStartLine(),
+                newLine,
+                oldLine,
                 detail.getRemediationSteps()
         );
     }
@@ -71,4 +87,3 @@ public class MrAdoptService {
         return a == null ? b == null : a.equals(b);
     }
 }
-
