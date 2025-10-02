@@ -63,6 +63,8 @@ public class MrAnalyzeService {
             entity.setAnalysisResult(JsonUtils.toJSONString(analysis));
             entity.setUpdatedAt(Instant.now());
             mrInfoEntityRepository.save(entity);
+            // Persist structured findings to detail table
+            llmAnalysisService.persistAnalysisDetails(entity, analysis);
         });
 
         return MrAnalyzeResponse.builder()
