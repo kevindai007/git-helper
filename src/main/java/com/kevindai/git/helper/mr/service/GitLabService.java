@@ -1,18 +1,22 @@
 package com.kevindai.git.helper.mr.service;
 
-import java.net.URI;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
-import com.kevindai.git.helper.confg.GitConfig;
-import lombok.Data;
+import com.kevindai.git.helper.config.GitConfig;
+import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
+import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
+import com.kevindai.git.helper.mr.dto.gitlab.Namespace;
+import com.kevindai.git.helper.mr.dto.gitlab.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,51 +26,56 @@ public class GitLabService {
 
     private final RestClient restClient = RestClient.create();
 
+    // java
     public ParsedMrUrl parseMrUrl(String mrUrl) {
-        // Format: https://<host>/<namespace full path>/<project>/-/merge_requests/<mrId>
-        // Example: https://gitlab-ultimate.nationalcloud.ae/presight/r100/platform/r100-task-api/-/merge_requests/541
+        // Example URL: https://gitlab.com/group/subgroup/project/-/merge_requests/123
         try {
-            URI uri = URI.create(mrUrl);
-            String[] parts = uri.getPath().split("/");
-            // parts example: ["", "presight", "r100", "platform", "r100-task-api", "-", "merge_requests", "541"]
-            if (parts.length < 7) {
-                throw new IllegalArgumentException("Invalid MR URL format");
+            URI uri = URI.create(mrUrl.trim());
+            String rawPath = uri.getPath();
+            if (!StringUtils.hasText(rawPath)) {
+                throw new IllegalArgumentException("Empty path");
             }
+            List<String> parts = Arrays.stream(rawPath.split("/"))
+                    .filter(StringUtils::hasText)
+                    .toList();
+
             int dashIdx = -1;
-            for (int i = 0; i < parts.length; i++) {
-                if ("-".equals(parts[i])) {
+            for (int i = 0; i < parts.size() - 2; i++) {
+                if ("-".equals(parts.get(i)) && "merge_requests".equals(parts.get(i + 1))) {
                     dashIdx = i;
                     break;
                 }
             }
-            if (dashIdx < 0 || dashIdx + 2 >= parts.length) {
-                throw new IllegalArgumentException("Invalid MR URL format (missing -/merge_requests/<id>)");
+            if (dashIdx < 0 || dashIdx + 2 >= parts.size()) {
+                throw new IllegalArgumentException("Invalid MR URL pattern");
             }
-            if (!"merge_requests".equals(parts[dashIdx + 1])) {
-                throw new IllegalArgumentException("Invalid MR URL: not a merge_requests path");
-            }
+
             int projectIdx = dashIdx - 1;
-            if (projectIdx <= 1) {
-                throw new IllegalArgumentException("Invalid MR URL: cannot infer project path");
+            if (projectIdx < 1) {
+                throw new IllegalArgumentException("Cannot determine project path");
             }
-            String projectPath = parts[projectIdx];
-            String groupPath = parts[projectIdx - 1]; // namespace name (last segment before project)
-            if (projectIdx - 1 < 1) {
-                throw new IllegalArgumentException("Invalid MR URL: cannot infer namespace");
+
+            int mrId = Integer.parseInt(parts.get(dashIdx + 2));
+            String projectPath = parts.get(projectIdx);
+            List<String> groupSegments = parts.subList(0, projectIdx);
+            if (groupSegments.isEmpty()) {
+                throw new IllegalArgumentException("Group path missing");
             }
-            String groupFullPath = String.join("/", Arrays.asList(parts).subList(1, projectIdx)); // full namespace path
-            int mrId = Integer.parseInt(parts[dashIdx + 2]);
+
+            String projectFullPath = String.join("/", groupSegments); // full group hierarchy (no leading slash)
+            String groupPath = groupSegments.get(groupSegments.size() - 1); // immediate parent only
 
             ParsedMrUrl parsed = new ParsedMrUrl();
             parsed.setGroupPath(groupPath);
-            parsed.setGroupFullPath(groupFullPath);
             parsed.setProjectPath(projectPath);
+            parsed.setProjectFullPath(projectFullPath);
             parsed.setMrId(mrId);
             return parsed;
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse MR URL: " + e.getMessage(), e);
         }
     }
+
 
     public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
         // GET /namespaces?search={GROUP_PATH}
@@ -82,7 +91,7 @@ public class GitLabService {
         }
 
         Optional<Namespace> exact = Arrays.stream(namespaces)
-                .filter(ns -> parsedMrUrl.getGroupFullPath().equals(ns.getFull_path()))
+                .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()) || parsedMrUrl.getGroupPath().equals(ns.getPath()))
                 .findFirst();
         return exact.orElse(namespaces[0]).getId();
     }
@@ -106,6 +115,16 @@ public class GitLabService {
         return exact.orElse(projects[0]).getId();
     }
 
+    public MrDetail fetchMrDetails(long projectId, int mrId) {
+        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}
+        return restClient.get().uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
+                .accept(MediaType.APPLICATION_JSON)
+                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .retrieve()
+                .body(MrDetail.class);
+
+    }
+
     public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
         // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}/diffs
         MrDiff[] diffs = restClient.get()
@@ -124,7 +143,7 @@ public class GitLabService {
         StringBuilder sb = new StringBuilder();
         for (MrDiff d : diffs) {
             String file = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : "<unknown>";
-            sb.append("--- 文件: ").append(file).append(" ---\n");
+            sb.append("--- File: ").append(file).append(" ---\n");
             if (d.getDiff() != null) {
                 sb.append(d.getDiff()).append("\n");
             }
@@ -132,44 +151,4 @@ public class GitLabService {
         }
         return sb.toString();
     }
-
-    @Data
-    public static class ParsedMrUrl {
-
-        private String groupPath;       // namespace name (last segment)
-        private String groupFullPath;   // namespace full path
-        private String projectPath;     // project/app name
-        private int mrId;
-    }
-
-    @Data
-    public static class Namespace {
-
-        private long id;
-        private String path;
-        private String full_path;
-        private String kind;
-    }
-
-    @Data
-    public static class Project {
-
-        private long id;
-        private String name;
-        private String path;
-    }
-
-    @Data
-    public static class MrDiff {
-
-        private String old_path;
-        private String new_path;
-        private String a_mode;
-        private String b_mode;
-        private boolean new_file;
-        private boolean renamed_file;
-        private boolean deleted_file;
-        private String diff; // unified diff format
-    }
 }
-

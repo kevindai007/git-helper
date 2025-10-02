@@ -1,4 +1,4 @@
-package com.kevindai.git.helper.confg;
+package com.kevindai.git.helper.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
