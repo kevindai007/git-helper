@@ -4,6 +4,7 @@ import com.kevindai.git.helper.config.GitConfig;
 import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
 import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
 import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
+import com.kevindai.git.helper.mr.dto.gitlab.MrVersion;
 import com.kevindai.git.helper.mr.dto.gitlab.Namespace;
 import com.kevindai.git.helper.mr.dto.gitlab.Project;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -140,6 +143,49 @@ public class GitLabService {
                 .retrieve()
                 .body(MrDiff[].class);
         return diffs == null ? List.of() : Arrays.asList(diffs);
+    }
+
+    public List<MrVersion> fetchMrVersions(long projectId, int mrId) {
+        MrVersion[] versions = restClient.get()
+                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/versions", Map.of("pid", projectId, "mr", mrId))
+                .accept(MediaType.APPLICATION_JSON)
+                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .retrieve()
+                .body(MrVersion[].class);
+        return versions == null ? List.of() : Arrays.asList(versions);
+    }
+
+    public void createMrDiscussion(long projectId,
+                                   int mrId,
+                                   String baseSha,
+                                   String headSha,
+                                   String startSha,
+                                   String filePath,
+                                   Integer newLine,
+                                   Integer oldLine,
+                                   String body) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("position[position_type]", "text");
+        form.add("position[base_sha]", baseSha);
+        form.add("position[head_sha]", headSha);
+        form.add("position[start_sha]", startSha);
+        form.add("position[new_path]", filePath);
+        form.add("position[old_path]", filePath);
+        if (newLine != null) {
+            form.add("position[new_line]", String.valueOf(newLine));
+        }
+        if (oldLine != null) {
+            form.add("position[old_line]", String.valueOf(oldLine));
+        }
+        form.add("body", body == null ? "" : body);
+
+        restClient.post()
+                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/discussions", Map.of("pid", projectId, "mr", mrId))
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .body(form)
+                .retrieve()
+                .toBodilessEntity();
     }
 
     public String formatDiffs(List<MrDiff> diffs) {

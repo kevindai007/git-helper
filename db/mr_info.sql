@@ -27,3 +27,32 @@ create index idx_mr_info_mr_id
 create index idx_mr_info_status
     on public.mr_info (state);
 
+-- New table to store structured LLM analysis findings per MR
+create table public.mr_analysis_detail
+(
+    id                 bigint generated always as identity primary key,
+    mr_info_id         bigint                                 not null,
+    project_id         bigint                                 not null,
+    mr_id              bigint                                  not null,
+    severity           varchar(16),
+    category           varchar(32),
+    title              varchar(512),
+    description        text,
+    file               varchar(512),
+    line_type          varchar(8),
+    start_line         integer,
+    end_line           integer,
+    start_col          integer,
+    end_col            integer,
+    evidence           text,
+    remediation_steps  text,
+    remediation_diff   text,
+    confidence         double precision,
+    tags_json          text,
+    created_at         timestamp with time zone default now() not null,
+    updated_at         timestamp with time zone default now() not null,
+    constraint fk_mr_analysis_detail_mr_info_id foreign key (mr_info_id) references public.mr_info (id) on delete cascade
+);
+
+create index idx_mr_analysis_detail_mr_info_id on public.mr_analysis_detail (mr_info_id);
+create index idx_mr_analysis_detail_project_mr on public.mr_analysis_detail (project_id, mr_id);

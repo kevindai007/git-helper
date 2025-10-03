@@ -11,7 +11,6 @@ public class Finding {
     private String id;
     private String severity; // blocker|high|medium|low|info
     private String category; // correctness|performance|security|maintainability|style|docs|tests
-    private String ruleId;
     private String title;
     private String description;
     private Location location;
