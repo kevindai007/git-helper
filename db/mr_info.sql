@@ -56,3 +56,5 @@ create table public.mr_analysis_detail
 
 create index idx_mr_analysis_detail_mr_info_id on public.mr_analysis_detail (mr_info_id);
 create index idx_mr_analysis_detail_project_mr on public.mr_analysis_detail (project_id, mr_id);
+alter table mr_analysis_detail add column anchor_id varchar(256);
+alter table mr_analysis_detail add column anchor_side varchar(16);

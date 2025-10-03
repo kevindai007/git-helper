@@ -2,18 +2,14 @@ package com.kevindai.git.helper.mr.service;
 
 import com.kevindai.git.helper.config.GitConfig;
 import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
-import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
-import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
-import com.kevindai.git.helper.mr.dto.gitlab.MrVersion;
-import com.kevindai.git.helper.mr.dto.gitlab.Namespace;
-import com.kevindai.git.helper.mr.dto.gitlab.Project;
+import com.kevindai.git.helper.mr.dto.gitlab.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -182,19 +178,14 @@ public class GitLabService {
                 .toBodilessEntity();
     }
 
-    public String formatDiffs(List<MrDiff> diffs) {
-        if (diffs == null || diffs.isEmpty()) {
-            return "(No diffs found)";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (MrDiff d : diffs) {
-            String file = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : "<unknown>";
-            sb.append("--- File: ").append(file).append(" ---\n");
-            if (d.getDiff() != null) {
-                sb.append(d.getDiff()).append("\n");
-            }
-            sb.append("...\n");
-        }
-        return sb.toString();
+    public String fetchMrRawDiffs(long projectId, int mrId) {
+        String rawDiffs = restClient.get()
+                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/raw_diffs", Map.of("pid", projectId, "mr", mrId))
+                .accept(MediaType.APPLICATION_JSON)
+                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .retrieve()
+                .body(String.class);
+        return rawDiffs;
     }
+
 }

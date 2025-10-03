@@ -70,10 +70,15 @@ public class MrAnalysisDetailEntity {
     @Column(name = "tags_json", columnDefinition = "TEXT")
     private String tagsJson;
 
+    @Column(name = "anchor_id", length = 256)
+    private String anchorId;
+
+    @Column(name = "anchor_side", length = 16)
+    private String anchorSide; // new|old|context
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }
-
