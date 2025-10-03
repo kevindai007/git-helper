@@ -29,9 +29,8 @@ public class LlmAnalysisService {
     private final List<PromptStrategy> strategies;
     private final PromptProvider promptProvider;
     private final MrAnalysisDetailRepository analysisDetailRepository;
-    private final AddressableDiffBuilder addressableDiffBuilder;
 
-    public LlmAnalysisReport analyzeDiff(String rawDiffs,List<MrDiff> diffs) {
+    public LlmAnalysisReport analyzeDiff(String rawDiffs, List<MrDiff> diffs) {
         String prompt = selectPromptForFiles(diffs);
         String userContent = "Use anchors to reference locations.\n" +
                 "Anchor format: <<ANCHOR N:<new_path>:<line>>> for new/context lines, <<ANCHOR O:<old_path>:<line>>> for removed lines. The <line> should be calculated based on hunk, empty line should also count 1 line\n" +
@@ -43,7 +42,6 @@ public class LlmAnalysisService {
                 .call()
                 .entity(LlmAnalysisReport.class);
     }
-
 
 
     public void persistAnalysisDetails(MrInfoEntity mrInfo, LlmAnalysisReport report) {
