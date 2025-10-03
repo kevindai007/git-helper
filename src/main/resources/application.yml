@@ -2,10 +2,12 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
-      base-url: ${OPENAI_CHAT_BASE_URL:https://llm.waha.ai/qwen3-30b-thinking}
+#      base-url: ${OPENAI_CHAT_BASE_URL:https://llm.waha.ai/qwen3-30b-thinking}
+      base-url: ${OPENAI_CHAT_BASE_URL:http://llm.waha.ai/qwen3-30b-insturct}
       chat:
         options:
-          model: Qwen/Qwen3-30B-A3B-Thinking-2507
+#          model: Qwen/Qwen3-30B-A3B-Thinking-2507
+          model: Qwen/Qwen3-30B-A3B-Instruct-2507
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
     username: ${DB_USER}
