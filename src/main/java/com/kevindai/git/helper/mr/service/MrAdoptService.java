@@ -112,6 +112,10 @@ public class MrAdoptService {
                 detail.getRemediationSteps()
         );
 
+        // Mark as adopted on success
+        detail.setStatus(1);
+        detailRepository.save(detail);
+
     }
 
     private static Instant parseTimeSafe(String iso) {

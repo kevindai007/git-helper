@@ -66,6 +66,9 @@ public class MrAnalysisDetailEntity {
     @Column(name = "anchor_side", length = 16)
     private String anchorSide; // new|old|context
 
+    @Column(name = "status", nullable = false)
+    private Integer status; // 0 = not adopted, 1 = adopted
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

@@ -18,5 +18,6 @@ public class Finding {
     private Remediation remediation;
     private Double confidence;
     private List<String> tags;
+    private Integer status; // 0 = not adopted, 1 = adopted
 }
 

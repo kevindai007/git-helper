@@ -39,6 +39,7 @@ public class MrAnalysisDetailService {
             e.setMrInfoId(mrInfo.getId());
             e.setProjectId(mrInfo.getProjectId());
             e.setMrId(mrInfo.getMrId());
+            e.setStatus(0); // default: not adopted
             e.setSeverity(f.getSeverity());
             e.setCategory(f.getCategory());
             e.setTitle(f.getTitle());
@@ -82,4 +83,3 @@ public class MrAnalysisDetailService {
         }
     }
 }
-

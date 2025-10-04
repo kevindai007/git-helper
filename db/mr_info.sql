@@ -71,5 +71,9 @@ alter table public.mr_info drop column if exists analysis_result;
 -- Migration: drop suggested diff column (if present)
 alter table public.mr_analysis_detail
     drop column if exists remediation_diff;
+
+-- Migration: add status to mark whether a suggestion is adopted (0=not adopted, 1=adopted)
+alter table public.mr_analysis_detail
+    add column if not exists status integer default 0 not null;
 alter table mr_analysis_detail add column anchor_id varchar(256);
 alter table mr_analysis_detail add column anchor_side varchar(16);

@@ -96,6 +96,7 @@ public class MrAnalyzeService {
             f.setCategory(d.getCategory());
             f.setTitle(d.getTitle());
             f.setDescription(d.getDescription());
+            f.setStatus(d.getStatus());
             if (d.getFile() != null) {
                 var loc = new com.kevindai.git.helper.mr.dto.llm.Location();
                 loc.setFile(d.getFile());
