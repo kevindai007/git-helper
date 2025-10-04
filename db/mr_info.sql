@@ -56,5 +56,11 @@ create table public.mr_analysis_detail
 
 create index idx_mr_analysis_detail_mr_info_id on public.mr_analysis_detail (mr_info_id);
 create index idx_mr_analysis_detail_project_mr on public.mr_analysis_detail (project_id, mr_id);
+
+-- Migration: drop unused location range/column fields (if present)
+alter table public.mr_analysis_detail
+    drop column if exists end_line,
+    drop column if exists start_col,
+    drop column if exists end_col;
 alter table mr_analysis_detail add column anchor_id varchar(256);
 alter table mr_analysis_detail add column anchor_side varchar(16);

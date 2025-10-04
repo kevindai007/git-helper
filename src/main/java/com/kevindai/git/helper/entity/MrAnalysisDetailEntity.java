@@ -46,15 +46,6 @@ public class MrAnalysisDetailEntity {
     @Column(name = "start_line")
     private Integer startLine;
 
-    @Column(name = "end_line")
-    private Integer endLine;
-
-    @Column(name = "start_col")
-    private Integer startCol;
-
-    @Column(name = "end_col")
-    private Integer endCol;
-
     @Column(name = "evidence", columnDefinition = "TEXT")
     private String evidence;
 

@@ -103,9 +103,6 @@ public class MrAnalyzeService {
                 var loc = new com.kevindai.git.helper.mr.dto.llm.Location();
                 loc.setFile(d.getFile());
                 loc.setStartLine(d.getStartLine());
-                loc.setEndLine(d.getEndLine());
-                loc.setStartCol(d.getStartCol());
-                loc.setEndCol(d.getEndCol());
                 f.setLocation(loc);
             }
             f.setEvidence(d.getEvidence());

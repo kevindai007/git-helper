@@ -39,51 +39,6 @@ public class LlmAnalysisService {
                 .entity(LlmAnalysisReport.class);
     }
 
-
-    public void persistAnalysisDetails(MrInfoEntity mrInfo, LlmAnalysisReport report) {
-        if (mrInfo == null || report == null || report.getFindings() == null) {
-            return;
-        }
-        try {
-            analysisDetailRepository.deleteByMrInfoId(mrInfo.getId());
-        } catch (Exception e) {
-            log.warn("Failed clearing previous analysis details for mr_info_id={}", mrInfo.getId());
-        }
-        var now = java.time.Instant.now();
-        for (Finding f : report.getFindings()) {
-            MrAnalysisDetailEntity e = new MrAnalysisDetailEntity();
-            e.setMrInfoId(mrInfo.getId());
-            e.setProjectId(mrInfo.getProjectId());
-            e.setMrId(mrInfo.getMrId());
-            e.setSeverity(f.getSeverity());
-            e.setCategory(f.getCategory());
-            e.setTitle(f.getTitle());
-            e.setDescription(f.getDescription());
-            if (f.getLocation() != null) {
-                e.setFile(f.getLocation().getFile());
-                e.setStartLine(f.getLocation().getStartLine());
-                e.setEndLine(f.getLocation().getEndLine());
-                e.setStartCol(f.getLocation().getStartCol());
-                e.setEndCol(f.getLocation().getEndCol());
-                e.setLineType(f.getLocation().getLineType());
-                e.setAnchorId(f.getLocation().getAnchorId());
-                e.setAnchorSide(f.getLocation().getAnchorSide());
-            }
-            e.setEvidence(f.getEvidence());
-            if (f.getRemediation() != null) {
-                e.setRemediationSteps(f.getRemediation().getSteps());
-                e.setRemediationDiff(f.getRemediation().getDiff());
-            }
-            e.setConfidence(f.getConfidence());
-            if (f.getTags() != null) {
-                e.setTagsJson(JsonUtils.toJSONString(f.getTags()));
-            }
-            e.setCreatedAt(now);
-            e.setUpdatedAt(now);
-            analysisDetailRepository.save(e);
-        }
-    }
-
     public void persistAnalysisDetails(MrInfoEntity mrInfo,
                                        LlmAnalysisReport report,
                                        java.util.Map<String, AddressableDiffBuilder.AnchorEntry> anchorIndex) {
@@ -129,9 +84,7 @@ public class LlmAnalysisService {
                     e.setStartLine(f.getLocation().getStartLine());
                     e.setLineType(f.getLocation().getLineType());
                 }
-                e.setEndLine(f.getLocation().getEndLine());
-                e.setStartCol(f.getLocation().getStartCol());
-                e.setEndCol(f.getLocation().getEndCol());
+                // endLine/startCol/endCol removed from entity; keep only startLine/lineType
             }
             e.setEvidence(f.getEvidence());
             if (f.getRemediation() != null) {
