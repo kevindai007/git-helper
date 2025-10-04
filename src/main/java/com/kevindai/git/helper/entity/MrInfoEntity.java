@@ -67,7 +67,4 @@ public class MrInfoEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @Column(name = "analysis_result", columnDefinition = "TEXT")
-    private String analysisResult;
-
 }

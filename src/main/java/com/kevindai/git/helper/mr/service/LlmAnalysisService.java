@@ -39,67 +39,6 @@ public class LlmAnalysisService {
                 .entity(LlmAnalysisReport.class);
     }
 
-    public void persistAnalysisDetails(MrInfoEntity mrInfo,
-                                       LlmAnalysisReport report,
-                                       java.util.Map<String, AddressableDiffBuilder.AnchorEntry> anchorIndex) {
-        if (mrInfo == null || report == null || report.getFindings() == null) {
-            return;
-        }
-        try {
-            analysisDetailRepository.deleteByMrInfoId(mrInfo.getId());
-        } catch (Exception e) {
-            log.warn("Failed clearing previous analysis details for mr_info_id={}", mrInfo.getId());
-        }
-        var now = java.time.Instant.now();
-        for (Finding f : report.getFindings()) {
-            MrAnalysisDetailEntity e = new MrAnalysisDetailEntity();
-            e.setMrInfoId(mrInfo.getId());
-            e.setProjectId(mrInfo.getProjectId());
-            e.setMrId(mrInfo.getMrId());
-            e.setSeverity(f.getSeverity());
-            e.setCategory(f.getCategory());
-            e.setTitle(f.getTitle());
-            e.setDescription(f.getDescription());
-            if (f.getLocation() != null) {
-                String anchorId = f.getLocation().getAnchorId();
-                String anchorSide = f.getLocation().getAnchorSide();
-                e.setAnchorId(anchorId);
-                e.setAnchorSide(anchorSide);
-
-                AddressableDiffBuilder.AnchorEntry ae = anchorId != null && anchorIndex != null ? anchorIndex.get(anchorId) : null;
-                if (ae != null) {
-                    if (ae.side == 'N') {
-                        e.setFile(ae.newPath);
-                        e.setLineType("new_line");
-                        e.setStartLine(ae.newLine);
-                        e.setAnchorSide("new");
-                    } else {
-                        e.setFile(ae.oldPath);
-                        e.setLineType("old_line");
-                        e.setStartLine(ae.oldLine);
-                        e.setAnchorSide("old");
-                    }
-                } else {
-                    e.setFile(f.getLocation().getFile());
-                    e.setStartLine(f.getLocation().getStartLine());
-                    e.setLineType(f.getLocation().getLineType());
-                }
-                // endLine/startCol/endCol removed from entity; keep only startLine/lineType
-            }
-            e.setEvidence(f.getEvidence());
-            if (f.getRemediation() != null) {
-                e.setRemediationSteps(f.getRemediation().getSteps());
-            }
-            e.setConfidence(f.getConfidence());
-            if (f.getTags() != null) {
-                e.setTagsJson(JsonUtils.toJSONString(f.getTags()));
-            }
-            e.setCreatedAt(now);
-            e.setUpdatedAt(now);
-            analysisDetailRepository.save(e);
-        }
-    }
-
     private String selectPromptForFiles(List<MrDiff> diffs) {
         if (diffs == null || diffs.isEmpty() || strategies == null || strategies.isEmpty()) {
             return GeneralBestPractice.SYSTEM_PROMPT;

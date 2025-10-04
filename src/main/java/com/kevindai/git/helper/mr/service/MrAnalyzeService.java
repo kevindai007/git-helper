@@ -27,6 +27,7 @@ public class MrAnalyzeService {
     private final MrInfoEntityRepository mrInfoEntityRepository;
     private final MrAnalysisDetailRepository analysisDetailRepository;
     private final AddressableDiffBuilder addressableDiffBuilder;
+    private final MrAnalysisDetailService mrAnalysisDetailService;
 
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
         var parsedUrl = gitLabService.parseMrUrl(req.getMrUrl());
@@ -36,33 +37,26 @@ public class MrAnalyzeService {
         if (mrDetail == null) {
             throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
         }
-        var existingOpt = mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsedUrl.getMrId());
-        if (existingOpt.isPresent()) {
-            MrInfoEntity existing = existingOpt.get();
-            if (existing.getSha() != null && existing.getSha().equals(mrDetail.getSha())) {
-                var details = analysisDetailRepository.findByMrInfoId(existing.getId());
-                if (details != null && !details.isEmpty()) {
-                    log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
-                    LlmAnalysisReport report = buildReportFromDetails(details);
-                    return MrAnalyzeResponse.builder()
-                            .status(AnalysisStatus.SUCCESS)
-                            .mrUrl(req.getMrUrl())
-                            .analysisResult(report)
-                            .build();
-                }
+
+        var existingMrInfo = mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha());
+        MrInfoEntity targetInfo;
+        if (existingMrInfo.isPresent()) {
+            targetInfo = existingMrInfo.get();
+            var details = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
+            if (details != null && !details.isEmpty()) {
+                log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
+                LlmAnalysisReport report = buildReportFromDetails(details);
+                return MrAnalyzeResponse.builder()
+                        .status(AnalysisStatus.SUCCESS)
+                        .mrUrl(req.getMrUrl())
+                        .analysisResult(report)
+                        .build();
             }
-            // sha has changed -> update
-            MrInfoEntity updated = converter(mrDetail);
-            updated.setId(existing.getId());
-            updated.setCreatedAt(existing.getCreatedAt());
-            mrInfoEntityRepository.save(updated);
-            log.info("MR updated due to sha change. projectId={}, mrId={}, oldSha={}, newSha={}",
-                    projectId, parsedUrl.getMrId(), existing.getSha(), mrDetail.getSha());
         } else {
-            // not exist -> insert
-            MrInfoEntity newEntity = converter(mrDetail);
-            mrInfoEntityRepository.save(newEntity);
-            log.info("MR inserted. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
+            // Create a new mr_info row for this sha (keep history by sha)
+            targetInfo = converter(mrDetail);
+            targetInfo = mrInfoEntityRepository.save(targetInfo);
+            log.info("MR info created for new sha. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
         }
 
         var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
@@ -70,18 +64,18 @@ public class MrAnalyzeService {
         String instruction = "Use anchors to reference locations. Copy an existing anchor id exactly as shown (e.g., A#12). Do not invent or compute line numbers. Provide location.anchorId (A#num) and anchorSide (new|old|context).\n\n";
         String userContent = instruction + annotated.getContent();
         LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(userContent, diffs);
-        mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha()).ifPresent(entity -> {
-            entity.setAnalysisResult(JsonUtils.toJSONString(analysis));
-            entity.setUpdatedAt(Instant.now());
-            mrInfoEntityRepository.save(entity);
-            // Persist structured findings to detail table
-            llmAnalysisService.persistAnalysisDetails(entity, analysis, annotated.getIndex());
-        });
+        targetInfo.setUpdatedAt(Instant.now());
+        mrInfoEntityRepository.save(targetInfo);
+        // Persist structured findings to detail table via dedicated service
+        mrAnalysisDetailService.persist(targetInfo, analysis, annotated.getIndex());
 
+        // Re-read details to build response (ensures ids are correct)
+        var savedDetails = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
+        LlmAnalysisReport responseReport = buildReportFromDetails(savedDetails);
         return MrAnalyzeResponse.builder()
                 .status(AnalysisStatus.SUCCESS)
                 .mrUrl(req.getMrUrl())
-                .analysisResult(analysis)
+                .analysisResult(responseReport)
                 .build();
     }
 
@@ -95,6 +89,9 @@ public class MrAnalyzeService {
         var findings = new java.util.ArrayList<Finding>();
         for (MrAnalysisDetailEntity d : details) {
             var f = new Finding();
+            if (d.getId() != null) {
+                f.setId(String.valueOf(d.getId()));
+            }
             f.setSeverity(d.getSeverity());
             f.setCategory(d.getCategory());
             f.setTitle(d.getTitle());
@@ -103,6 +100,9 @@ public class MrAnalyzeService {
                 var loc = new com.kevindai.git.helper.mr.dto.llm.Location();
                 loc.setFile(d.getFile());
                 loc.setStartLine(d.getStartLine());
+                loc.setLineType(d.getLineType());
+                loc.setAnchorId(d.getAnchorId());
+                loc.setAnchorSide(d.getAnchorSide());
                 f.setLocation(loc);
             }
             f.setEvidence(d.getEvidence());
@@ -141,6 +141,5 @@ public class MrAnalyzeService {
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         return entity;
-
     }
 }

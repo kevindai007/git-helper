@@ -27,6 +27,10 @@ create index idx_mr_info_mr_id
 create index idx_mr_info_status
     on public.mr_info (state);
 
+-- Ensure uniqueness of MR per project/mr/sha
+create unique index if not exists uniq_mr_info_project_mr_sha
+    on public.mr_info (project_id, mr_id, sha);
+
 -- New table to store structured LLM analysis findings per MR
 create table public.mr_analysis_detail
 (
@@ -62,6 +66,7 @@ alter table public.mr_analysis_detail
     drop column if exists end_line,
     drop column if exists start_col,
     drop column if exists end_col;
+alter table public.mr_info drop column if exists analysis_result;
 
 -- Migration: drop suggested diff column (if present)
 alter table public.mr_analysis_detail
