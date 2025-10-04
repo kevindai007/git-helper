@@ -26,6 +26,7 @@ public class MrAnalyzeService {
     private final LlmAnalysisService llmAnalysisService;
     private final MrInfoEntityRepository mrInfoEntityRepository;
     private final MrAnalysisDetailRepository analysisDetailRepository;
+    private final AddressableDiffBuilder addressableDiffBuilder;
 
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
         var parsedUrl = gitLabService.parseMrUrl(req.getMrUrl());
@@ -65,14 +66,16 @@ public class MrAnalyzeService {
         }
 
         var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
-        String rawDiffs = gitLabService.fetchMrRawDiffs(projectId, parsedUrl.getMrId());
-        LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(rawDiffs, diffs);
+        var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
+        String instruction = "Use anchors to reference locations. Copy an existing anchor id exactly as shown (e.g., A#12). Do not invent or compute line numbers. Provide location.anchorId (A#num) and anchorSide (new|old|context).\n\n";
+        String userContent = instruction + annotated.getContent();
+        LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(userContent, diffs);
         mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha()).ifPresent(entity -> {
             entity.setAnalysisResult(JsonUtils.toJSONString(analysis));
             entity.setUpdatedAt(Instant.now());
             mrInfoEntityRepository.save(entity);
             // Persist structured findings to detail table
-            llmAnalysisService.persistAnalysisDetails(entity, analysis);
+            llmAnalysisService.persistAnalysisDetails(entity, analysis, annotated.getIndex());
         });
 
         return MrAnalyzeResponse.builder()

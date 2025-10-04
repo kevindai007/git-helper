@@ -30,15 +30,11 @@ public class LlmAnalysisService {
     private final PromptProvider promptProvider;
     private final MrAnalysisDetailRepository analysisDetailRepository;
 
-    public LlmAnalysisReport analyzeDiff(String rawDiffs, List<MrDiff> diffs) {
+    public LlmAnalysisReport analyzeDiff(String content, List<MrDiff> diffs) {
         String prompt = selectPromptForFiles(diffs);
-        String userContent = "Use anchors to reference locations.\n" +
-                "Anchor format: <<ANCHOR N:<new_path>:<line>>> for new/context lines, <<ANCHOR O:<old_path>:<line>>> for removed lines. The <line> should be calculated based on hunk, empty line should also count 1 line\n" +
-                "In each finding.location include 'anchorId' (without angle brackets) and 'anchorSide' (new|old|context)." +
-                "\n\n" + rawDiffs;
         return chatClient
                 .prompt(prompt)
-                .user(userContent)
+                .user(content)
                 .call()
                 .entity(LlmAnalysisReport.class);
     }
@@ -72,6 +68,70 @@ public class LlmAnalysisService {
                 e.setLineType(f.getLocation().getLineType());
                 e.setAnchorId(f.getLocation().getAnchorId());
                 e.setAnchorSide(f.getLocation().getAnchorSide());
+            }
+            e.setEvidence(f.getEvidence());
+            if (f.getRemediation() != null) {
+                e.setRemediationSteps(f.getRemediation().getSteps());
+                e.setRemediationDiff(f.getRemediation().getDiff());
+            }
+            e.setConfidence(f.getConfidence());
+            if (f.getTags() != null) {
+                e.setTagsJson(JsonUtils.toJSONString(f.getTags()));
+            }
+            e.setCreatedAt(now);
+            e.setUpdatedAt(now);
+            analysisDetailRepository.save(e);
+        }
+    }
+
+    public void persistAnalysisDetails(MrInfoEntity mrInfo,
+                                       LlmAnalysisReport report,
+                                       java.util.Map<String, AddressableDiffBuilder.AnchorEntry> anchorIndex) {
+        if (mrInfo == null || report == null || report.getFindings() == null) {
+            return;
+        }
+        try {
+            analysisDetailRepository.deleteByMrInfoId(mrInfo.getId());
+        } catch (Exception e) {
+            log.warn("Failed clearing previous analysis details for mr_info_id={}", mrInfo.getId());
+        }
+        var now = java.time.Instant.now();
+        for (Finding f : report.getFindings()) {
+            MrAnalysisDetailEntity e = new MrAnalysisDetailEntity();
+            e.setMrInfoId(mrInfo.getId());
+            e.setProjectId(mrInfo.getProjectId());
+            e.setMrId(mrInfo.getMrId());
+            e.setSeverity(f.getSeverity());
+            e.setCategory(f.getCategory());
+            e.setTitle(f.getTitle());
+            e.setDescription(f.getDescription());
+            if (f.getLocation() != null) {
+                String anchorId = f.getLocation().getAnchorId();
+                String anchorSide = f.getLocation().getAnchorSide();
+                e.setAnchorId(anchorId);
+                e.setAnchorSide(anchorSide);
+
+                AddressableDiffBuilder.AnchorEntry ae = anchorId != null && anchorIndex != null ? anchorIndex.get(anchorId) : null;
+                if (ae != null) {
+                    if (ae.side == 'N') {
+                        e.setFile(ae.newPath);
+                        e.setLineType("new_line");
+                        e.setStartLine(ae.newLine);
+                        e.setAnchorSide("new");
+                    } else {
+                        e.setFile(ae.oldPath);
+                        e.setLineType("old_line");
+                        e.setStartLine(ae.oldLine);
+                        e.setAnchorSide("old");
+                    }
+                } else {
+                    e.setFile(f.getLocation().getFile());
+                    e.setStartLine(f.getLocation().getStartLine());
+                    e.setLineType(f.getLocation().getLineType());
+                }
+                e.setEndLine(f.getLocation().getEndLine());
+                e.setStartCol(f.getLocation().getStartCol());
+                e.setEndCol(f.getLocation().getEndCol());
             }
             e.setEvidence(f.getEvidence());
             if (f.getRemediation() != null) {

@@ -3,6 +3,7 @@ package com.kevindai.git.helper.mr.service;
 import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
 import com.kevindai.git.helper.entity.MrInfoEntity;
 import com.kevindai.git.helper.mr.dto.gitlab.MrVersion;
+import com.kevindai.git.helper.mr.service.AddressableDiffBuilder.AnnotatedDiff;
 import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class MrAdoptService {
     private final MrAnalysisDetailRepository detailRepository;
     private final MrInfoEntityRepository mrInfoRepository;
     private final GitLabService gitLabService;
+    private final AddressableDiffBuilder addressableDiffBuilder;
 
     public void adoptRecommendation(long detailId) {
         MrAnalysisDetailEntity detail = detailRepository.findById(detailId)
@@ -47,8 +49,10 @@ public class MrAdoptService {
             throw new IllegalStateException("MR head SHA mismatch. Expected=" + mrInfo.getSha() + ", latest=" + latest.getHead_commit_sha());
         }
 
-        // fetch diffs (latest head verified above)
+        // fetch diffs (latest head verified above) and build anchor index
         var diffs = gitLabService.fetchMrDiffs(projectId, mrId);
+        var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
+        var index = annotated.getIndex();
         Integer newLine = null;
         Integer oldLine = null;
         String filePathForPosition = detail.getFile();
@@ -59,19 +63,16 @@ public class MrAdoptService {
 
         // Prefer anchor if available
         if (StringUtils.hasText(detail.getAnchorId())) {
-            Anchor a = Anchor.parse(detail.getAnchorId());
-            if (a != null) {
-                if (a.side == Anchor.Side.NEW) {
-                    filePathForPosition = a.path;
-                    newLine = a.line;
-                    matched = diffs.stream().filter(d -> safeEq(a.path, d.getNew_path())).findFirst()
-                            .orElseThrow(() -> new IllegalStateException("No diff(new) found for path: " + a.path));
-                } else if (a.side == Anchor.Side.OLD) {
-                    filePathForPosition = a.path;
-                    oldLine = a.line;
-                    matched = diffs.stream().filter(d -> safeEq(a.path, d.getOld_path())).findFirst()
-                            .orElseThrow(() -> new IllegalStateException("No diff(old) found for path: " + a.path));
-                }
+            var ae = index.get(detail.getAnchorId());
+            if (ae == null) {
+                throw new IllegalStateException("Anchor not found in current diff index: " + detail.getAnchorId());
+            }
+            if (ae.side == 'N') {
+                filePathForPosition = ae.newPath;
+                newLine = ae.newLine;
+            } else {
+                filePathForPosition = ae.oldPath;
+                oldLine = ae.oldLine;
             }
         }
 
