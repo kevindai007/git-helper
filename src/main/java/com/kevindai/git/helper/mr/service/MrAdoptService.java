@@ -1,9 +1,9 @@
 package com.kevindai.git.helper.mr.service;
 
 import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
+import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
 import com.kevindai.git.helper.entity.MrInfoEntity;
 import com.kevindai.git.helper.mr.dto.gitlab.MrVersion;
-import com.kevindai.git.helper.mr.service.AddressableDiffBuilder.AnnotatedDiff;
 import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -56,10 +56,6 @@ public class MrAdoptService {
         Integer newLine = null;
         Integer oldLine = null;
         String filePathForPosition = detail.getFile();
-        String finalFilePathForPosition = filePathForPosition;
-        var matched = diffs.stream()
-                .filter(d -> safeEq(finalFilePathForPosition, d.getNew_path()) || safeEq(finalFilePathForPosition, d.getOld_path()))
-                .findFirst().orElse(null);
 
         // Prefer anchor if available
         if (StringUtils.hasText(detail.getAnchorId())) {
@@ -76,12 +72,11 @@ public class MrAdoptService {
             }
         }
 
-        if (matched == null) {
-            matched = diffs.stream()
-                    .filter(d -> safeEq(detail.getFile(), d.getNew_path()) || safeEq(detail.getFile(), d.getOld_path()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No diff found for file: " + detail.getFile()));
-        }
+        String finalFilePathForPosition = filePathForPosition;
+        var matched = diffs.stream()
+                .filter(d -> safeEq(finalFilePathForPosition, d.getNew_path()) || safeEq(finalFilePathForPosition, d.getOld_path()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No diff found for file: " + finalFilePathForPosition));
 
         // If still no line resolved, fall back to stored lineType/startLine
         if (newLine == null && oldLine == null) {
