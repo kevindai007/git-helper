@@ -75,17 +75,6 @@ public class JavaScriptBestPractice {
             - Unit/integration tests; snapshot tests where applicable
             - ESLint rules and Prettier formatting
             - Enforce CI checks for lint/tests/types
-            
-            Response Example:
-            1. (High)Suggestion: Use a more efficient algorithm for sorting.
-               Reasoning: The current implementation has a time complexity of O(n^2), which can be improved to O(n log n) using quicksort or mergesort.
-            2. (High)Suggestion: Add error handling for null inputs.
-               Reasoning: The current code does not handle null inputs, which could lead to runtime exceptions.
-            3. (Medium)Suggestion: Refactor the function into smaller, reusable components.
-               Reasoning: The current function is too long and complex, making it hard to read and maintain.
-            4. (Low)Suggestion: Use parameterized queries to prevent SQL injection.
-               Reasoning: The current implementation concatenates user input directly into SQL queries, which is a security risk.
-
             **Analysis Focus**: Prefer robust, typed, and maintainable JS/TS with strong async handling, security hygiene, and performance-minded structure. Provide prioritized, actionable improvements with reasoning.
 
             
@@ -105,9 +94,9 @@ public class JavaScriptBestPractice {
                   "category": "correctness|performance|security|maintainability|style|docs|tests",
                   "title": "string",
                   "description": "string",
-                  "location": { "file": "path","lineType":"old_line", "startLine": 0, "endLine": 0, "startCol": 0, "endCol": 0 },
-                  "evidence": "string",
-                  "remediation": { "steps": "string", "diff": "unified diff or empty" },
+                  "location": { "file": "path", "lineType": "old_line|new_line", "startLine": 0, "anchorId": "A#123", "anchorSide": "new|old" },
+                  "evidence": "string (brief snippet)",
+                  "remediation": { "steps": "string" },
                   "confidence": 0.0,
                   "tags": ["string"]
                 }

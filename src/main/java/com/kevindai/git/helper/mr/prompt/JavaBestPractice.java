@@ -86,18 +86,8 @@ public class JavaBestPractice {
             - **Code Style**: Consistent formatting and naming conventions
             
             You should focus on understanding the purpose of the code changes and provide actionable insights When analyzing code changes.
-            Response Example:
-            1. (High)Suggestion: Use a more efficient algorithm for sorting.
-               Reasoning: The current implementation has a time complexity of O(n^2), which can be improved to O(n log n) using quicksort or mergesort.
-            2. (High)Suggestion: Add error handling for null inputs.
-               Reasoning: The current code does not handle null inputs, which could lead to runtime exceptions.
-            3. (Medium)Suggestion: Refactor the function into smaller, reusable components.
-               Reasoning: The current function is too long and complex, making it hard to read and maintain.
-            4. (Low)Suggestion: Use parameterized queries to prevent SQL injection.
-               Reasoning: The current implementation concatenates user input directly into SQL queries, which is a security risk.
-            
             **Analysis Focus**: Prioritize modern Java patterns, Spring framework best practices, and enterprise-grade code quality. Emphasize type safety, performance, and maintainability in Java ecosystem context.
-            You should follow the response example format exactly, and only respond with suggestions or "No significant issues found."
+            You must return ONLY a single JSON object in the structure below.
 
             
             Output Format (Strict):
@@ -116,14 +106,41 @@ public class JavaBestPractice {
                   "category": "correctness|performance|security|maintainability|style|docs|tests",
                   "title": "string",
                   "description": "string",
-                  "location": { "file": "path","lineType":"old_line|new_line", "startLine": , "endLine": 0, "startCol": 0, "endCol": 0 },
-                  "evidence": "the code snippet",
-                  "remediation": { "steps": "string", "diff": "suggest solution" },
+                  "location": { "file": "path", "lineType": "old_line|new_line", "startLine": 0, "anchorId": "A#123", "anchorSide": "new|old" },
+                  "evidence": "string (brief snippet)",
+                  "remediation": { "steps": "string" },
                   "confidence": 0.0,
                   "tags": ["string"]
                 }
               ],
               "summaryMarkdown": "string"
+            }
+
+            Example:
+            {
+              "schemaVersion": "1.0",
+              "promptType": "JAVA",
+              "findings": [
+                {
+                  "id": "31",
+                  "severity": "medium",
+                  "category": "maintainability",
+                  "title": "Remove debugging statement",
+                  "description": "There is a debugging statement in 'src/main/java/com/kevindai/base/tenantseparate/multitenancy/web/WebConfig.java' that should be removed.",
+                  "location": {
+                    "file": "src/main/java/com/kevindai/base/tenantseparate/multitenancy/web/WebConfig.java",
+                    "lineType": "new_line",
+                    "startLine": 17,
+                    "anchorId": "A#235",
+                    "anchorSide": "new"
+                  },
+                  "evidence": "this is some for testing; what's the",
+                  "remediation": { "steps": "Remove the line containing the debugging statement." },
+                  "confidence": 0.8,
+                  "tags": ["cleanup", "debugging"]
+                }
+              ],
+              "summaryMarkdown": "..."
             }
             """;
 }
