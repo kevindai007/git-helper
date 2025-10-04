@@ -106,10 +106,9 @@ public class MrAnalyzeService {
                 f.setLocation(loc);
             }
             f.setEvidence(d.getEvidence());
-            if (StringUtils.hasText(d.getRemediationSteps()) || StringUtils.hasText(d.getRemediationDiff())) {
+            if (StringUtils.hasText(d.getRemediationSteps())) {
                 var rem = new com.kevindai.git.helper.mr.dto.llm.Remediation();
                 rem.setSteps(d.getRemediationSteps());
-                rem.setDiff(d.getRemediationDiff());
                 f.setRemediation(rem);
             }
             f.setConfidence(d.getConfidence());

@@ -89,7 +89,6 @@ public class LlmAnalysisService {
             e.setEvidence(f.getEvidence());
             if (f.getRemediation() != null) {
                 e.setRemediationSteps(f.getRemediation().getSteps());
-                e.setRemediationDiff(f.getRemediation().getDiff());
             }
             e.setConfidence(f.getConfidence());
             if (f.getTags() != null) {

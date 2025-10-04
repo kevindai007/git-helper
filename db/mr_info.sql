@@ -62,5 +62,9 @@ alter table public.mr_analysis_detail
     drop column if exists end_line,
     drop column if exists start_col,
     drop column if exists end_col;
+
+-- Migration: drop suggested diff column (if present)
+alter table public.mr_analysis_detail
+    drop column if exists remediation_diff;
 alter table mr_analysis_detail add column anchor_id varchar(256);
 alter table mr_analysis_detail add column anchor_side varchar(16);

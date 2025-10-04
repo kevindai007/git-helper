@@ -52,8 +52,7 @@ public class MrAnalysisDetailEntity {
     @Column(name = "remediation_steps", columnDefinition = "TEXT")
     private String remediationSteps;
 
-    @Column(name = "remediation_diff", columnDefinition = "TEXT")
-    private String remediationDiff;
+    // Removed remediation_diff; we keep only remediation steps as text guidance
 
     @Column(name = "confidence")
     private Double confidence;
