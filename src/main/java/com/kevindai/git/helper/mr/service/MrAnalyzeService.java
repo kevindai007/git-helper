@@ -61,18 +61,23 @@ public class MrAnalyzeService {
 
         var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
         var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
-        String instruction = "Use anchors to reference locations. Copy an existing anchor id exactly as shown (e.g., A#12). Do not invent or compute line numbers. Provide location.anchorId (A#num) and anchorSide (new|old|context).\n\n";
-        String userContent = instruction + annotated.getContent();
-        LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(userContent, diffs);
-        targetInfo.setUpdatedAt(Instant.now());
-        targetInfo.setSummaryMarkdown(analysis.getSummaryMarkdown());
-        mrInfoEntityRepository.save(targetInfo);
-        // Persist structured findings to detail table via dedicated service
-        mrAnalysisDetailService.persist(targetInfo, analysis, annotated.getIndex());
+        // Stage 1: analyze per-file to stay within token limits
+        for (var d : diffs) {
+            String path = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : d.getOld_path();
+            if (!StringUtils.hasText(path)) continue;
+            String fileSection = AddressableDiffBuilder.sliceAnnotatedForPath(annotated.getContent(), path);
+            if (!StringUtils.hasText(fileSection)) continue;
+            // Single-file prompt selection by passing only this diff
+            LlmAnalysisReport piece = llmAnalysisService.analyzeDiff(fileSection, java.util.List.of(d));
+            mrAnalysisDetailService.persist(targetInfo, piece, annotated.getIndex());
+        }
 
-        // Re-read details to build response (ensures ids are correct)
+        // Build final report from persisted details (ensures IDs correct) and save summary
         var savedDetails = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
         LlmAnalysisReport responseReport = buildReportFromDetails(targetInfo, savedDetails);
+        targetInfo.setUpdatedAt(Instant.now());
+        targetInfo.setSummaryMarkdown(responseReport.getSummaryMarkdown());
+        mrInfoEntityRepository.save(targetInfo);
         return MrAnalyzeResponse.builder()
                 .status(AnalysisStatus.SUCCESS)
                 .mrUrl(req.getMrUrl())

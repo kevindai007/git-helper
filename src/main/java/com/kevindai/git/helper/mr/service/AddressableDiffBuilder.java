@@ -54,6 +54,25 @@ public class AddressableDiffBuilder {
         return new AnnotatedDiff(sb.toString(), index);
     }
 
+    /**
+     * Extract the annotated diff section for a specific file path from the full annotated content.
+     * The content is produced by buildAnnotatedWithIndex and contains sections like:
+     * --- File: <path> ---\n
+     * ... (diff lines) ...\n
+     * ...\n
+     */
+    public static String sliceAnnotatedForPath(String annotatedContent, String path) {
+        if (annotatedContent == null || path == null) return null;
+        String header = "--- File: " + path + " ---\n";
+        int start = annotatedContent.indexOf(header);
+        if (start < 0) return null;
+        int next = annotatedContent.indexOf("--- File: ", start + header.length());
+        int endDots = annotatedContent.indexOf("...\n", start + header.length());
+        int end = next >= 0 ? Math.min(next, (endDots >= 0 ? endDots + 4 : annotatedContent.length()))
+                : (endDots >= 0 ? endDots + 4 : annotatedContent.length());
+        return annotatedContent.substring(start, end);
+    }
+
     private int annotateOne(StringBuilder out, MrDiff d, Map<String, AnchorEntry> index, int start) {
         String diff = d.getDiff();
         String newPath = d.getNew_path();
@@ -126,4 +145,3 @@ public class AddressableDiffBuilder {
         return counter;
     }
 }
-
