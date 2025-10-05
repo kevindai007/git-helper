@@ -10,13 +10,13 @@ import com.kevindai.git.helper.mr.dto.llm.Finding;
 import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
-import com.kevindai.git.helper.utils.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -45,7 +45,7 @@ public class MrAnalyzeService {
             var details = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
             if (details != null && !details.isEmpty()) {
                 log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
-                LlmAnalysisReport report = buildReportFromDetails(details);
+                LlmAnalysisReport report = buildReportFromDetails(targetInfo, details);
                 return MrAnalyzeResponse.builder()
                         .status(AnalysisStatus.SUCCESS)
                         .mrUrl(req.getMrUrl())
@@ -65,13 +65,14 @@ public class MrAnalyzeService {
         String userContent = instruction + annotated.getContent();
         LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(userContent, diffs);
         targetInfo.setUpdatedAt(Instant.now());
+        targetInfo.setSummaryMarkdown(analysis.getSummaryMarkdown());
         mrInfoEntityRepository.save(targetInfo);
         // Persist structured findings to detail table via dedicated service
         mrAnalysisDetailService.persist(targetInfo, analysis, annotated.getIndex());
 
         // Re-read details to build response (ensures ids are correct)
         var savedDetails = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
-        LlmAnalysisReport responseReport = buildReportFromDetails(savedDetails);
+        LlmAnalysisReport responseReport = buildReportFromDetails(targetInfo, savedDetails);
         return MrAnalyzeResponse.builder()
                 .status(AnalysisStatus.SUCCESS)
                 .mrUrl(req.getMrUrl())
@@ -79,7 +80,7 @@ public class MrAnalyzeService {
                 .build();
     }
 
-    private LlmAnalysisReport buildReportFromDetails(java.util.List<MrAnalysisDetailEntity> details) {
+    private LlmAnalysisReport buildReportFromDetails(MrInfoEntity mrInfo, List<MrAnalysisDetailEntity> details) {
         if (details == null || details.isEmpty()) {
             return null;
         }
@@ -123,6 +124,7 @@ public class MrAnalyzeService {
             findings.add(f);
         }
         report.setFindings(findings);
+        report.setSummaryMarkdown(mrInfo.getSummaryMarkdown());
         return report;
     }
 

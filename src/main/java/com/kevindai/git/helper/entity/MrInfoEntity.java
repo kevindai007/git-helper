@@ -67,4 +67,7 @@ public class MrInfoEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "summary_markdown", columnDefinition = "TEXT")
+    private String summaryMarkdown;
+
 }

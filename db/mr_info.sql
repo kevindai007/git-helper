@@ -77,3 +77,4 @@ alter table public.mr_analysis_detail
     add column if not exists status integer default 0 not null;
 alter table mr_analysis_detail add column anchor_id varchar(256);
 alter table mr_analysis_detail add column anchor_side varchar(16);
+alter table mr_info add column if not exists summary_markdown text default '';

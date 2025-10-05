@@ -1,17 +1,12 @@
 package com.kevindai.git.helper.mr.service;
 
-import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
-import com.kevindai.git.helper.entity.MrInfoEntity;
 import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
-import com.kevindai.git.helper.mr.dto.llm.Finding;
 import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import com.kevindai.git.helper.mr.prompt.GeneralBestPractice;
 import com.kevindai.git.helper.mr.prompt.PromptProvider;
 import com.kevindai.git.helper.mr.prompt.PromptType;
 import com.kevindai.git.helper.mr.prompt.strategy.MrContext;
 import com.kevindai.git.helper.mr.prompt.strategy.PromptStrategy;
-import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
-import com.kevindai.git.helper.utils.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -28,7 +23,6 @@ public class LlmAnalysisService {
     private final ChatClient chatClient;
     private final List<PromptStrategy> strategies;
     private final PromptProvider promptProvider;
-    private final MrAnalysisDetailRepository analysisDetailRepository;
 
     public LlmAnalysisReport analyzeDiff(String content, List<MrDiff> diffs) {
         String prompt = selectPromptForFiles(diffs);
