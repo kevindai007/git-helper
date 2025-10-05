@@ -22,8 +22,7 @@ import java.util.Optional;
 public class GitLabService {
 
     private final GitConfig gitConfig;
-
-    private final RestClient restClient = RestClient.create();
+    private final GitLabClientFactory gitLabClientFactory;
 
     // java
     public ParsedMrUrl parseMrUrl(String mrUrl) {
@@ -76,149 +75,122 @@ public class GitLabService {
     }
 
 
-    public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
-        // GET /namespaces?search={GROUP_PATH}
-        return fetchGroupId(parsedMrUrl, gitConfig.getToken());
+    // Session/Scoped API: Build a token-bound session for elegant usage
+    public GitLabSession withToken(String token) {
+        RestClient client = gitLabClientFactory.forToken(token);
+        return new GitLabSession(client, gitConfig.getUrl());
     }
 
-    public long fetchGroupId(ParsedMrUrl parsedMrUrl, String token) {
-        Namespace[] namespaces = restClient.get()
-                .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
-                .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", token)
-                .retrieve()
-                .body(Namespace[].class);
+    public static class GitLabSession {
+        private final RestClient client;
+        private final String baseUrl;
 
-        if (namespaces == null || namespaces.length == 0) {
-            throw new IllegalStateException("Group not found: " + parsedMrUrl.getGroupPath());
+        public GitLabSession(RestClient client, String baseUrl) {
+            this.client = client;
+            this.baseUrl = baseUrl;
         }
 
-        Optional<Namespace> exact = Arrays.stream(namespaces)
-                .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()) || parsedMrUrl.getGroupPath().equals(ns.getPath()))
-                .findFirst();
-        return exact.orElse(namespaces[0]).getId();
-    }
+        public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
+            Namespace[] namespaces = client.get()
+                    .uri(baseUrl + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Namespace[].class);
 
-    public long fetchProjectId(long groupId, String projectPath) {
-        // GET /groups/{GROUP_ID}/projects?search={PROJECT_PATH}
-        return fetchProjectId(groupId, projectPath, gitConfig.getToken());
-    }
+            if (namespaces == null || namespaces.length == 0) {
+                throw new IllegalStateException("Group not found: " + parsedMrUrl.getGroupPath());
+            }
 
-    public long fetchProjectId(long groupId, String projectPath, String token) {
-        Project[] projects = restClient.get()
-                .uri(gitConfig.getUrl() + "/groups/{gid}/projects?search={q}", Map.of("gid", groupId, "q", projectPath))
-                .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", token)
-                .retrieve()
-                .body(Project[].class);
-
-        if (projects == null || projects.length == 0) {
-            throw new IllegalStateException("Project not found under group: " + projectPath);
+            Optional<Namespace> exact = Arrays.stream(namespaces)
+                    .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()) || parsedMrUrl.getGroupPath().equals(ns.getPath()))
+                    .findFirst();
+            return exact.orElse(namespaces[0]).getId();
         }
 
-        Optional<Project> exact = Arrays.stream(projects)
-                .filter(p -> projectPath.equals(p.getPath()) || projectPath.equals(p.getName()))
-                .findFirst();
-        return exact.orElse(projects[0]).getId();
-    }
+        public long fetchProjectId(long groupId, String projectPath) {
+            Project[] projects = client.get()
+                    .uri(baseUrl + "/groups/{gid}/projects?search={q}", Map.of("gid", groupId, "q", projectPath))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Project[].class);
 
-    public MrDetail fetchMrDetails(long projectId, int mrId) {
-        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}
-        return fetchMrDetails(projectId, mrId, gitConfig.getToken());
+            if (projects == null || projects.length == 0) {
+                throw new IllegalStateException("Project not found under group: " + projectPath);
+            }
 
-    }
-
-    public MrDetail fetchMrDetails(long projectId, int mrId, String token) {
-        return restClient.get().uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
-                .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", token)
-                .retrieve()
-                .body(MrDetail.class);
-
-    }
-
-    public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
-        return fetchMrDiffs(projectId, mrId, gitConfig.getToken());
-    }
-
-    public List<MrDiff> fetchMrDiffs(long projectId, int mrId, String token) {
-        MrDiff[] diffs = restClient.get()
-                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/diffs", Map.of("pid", projectId, "mr", mrId))
-                .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", token)
-                .retrieve()
-                .body(MrDiff[].class);
-        return diffs == null ? List.of() : Arrays.asList(diffs);
-    }
-
-    public List<MrVersion> fetchMrVersions(long projectId, int mrId) {
-        return fetchMrVersions(projectId, mrId, gitConfig.getToken());
-    }
-
-    public List<MrVersion> fetchMrVersions(long projectId, int mrId, String token) {
-        MrVersion[] versions = restClient.get()
-                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/versions", Map.of("pid", projectId, "mr", mrId))
-                .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", token)
-                .retrieve()
-                .body(MrVersion[].class);
-        return versions == null ? List.of() : Arrays.asList(versions);
-    }
-
-    public void createMrDiscussion(long projectId,
-                                   int mrId,
-                                   String baseSha,
-                                   String headSha,
-                                   String startSha,
-                                   String filePath,
-                                   Integer newLine,
-                                   Integer oldLine,
-                                   String body) {
-        createMrDiscussion(projectId, mrId, baseSha, headSha, startSha, filePath, newLine, oldLine, body, gitConfig.getToken());
-    }
-
-    public void createMrDiscussion(long projectId,
-                                   int mrId,
-                                   String baseSha,
-                                   String headSha,
-                                   String startSha,
-                                   String filePath,
-                                   Integer newLine,
-                                   Integer oldLine,
-                                   String body,
-                                   String token) {
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("position[position_type]", "text");
-        form.add("position[base_sha]", baseSha);
-        form.add("position[head_sha]", headSha);
-        form.add("position[start_sha]", startSha);
-        form.add("position[new_path]", filePath);
-        form.add("position[old_path]", filePath);
-        if (newLine != null) {
-            form.add("position[new_line]", String.valueOf(newLine));
+            Optional<Project> exact = Arrays.stream(projects)
+                    .filter(p -> projectPath.equals(p.getPath()) || projectPath.equals(p.getName()))
+                    .findFirst();
+            return exact.orElse(projects[0]).getId();
         }
-        if (oldLine != null) {
-            form.add("position[old_line]", String.valueOf(oldLine));
+
+        public MrDetail fetchMrDetails(long projectId, int mrId) {
+            return client.get().uri(baseUrl + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(MrDetail.class);
         }
-        form.add("body", body == null ? "" : body);
 
-        restClient.post()
-                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/discussions", Map.of("pid", projectId, "mr", mrId))
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .header("PRIVATE-TOKEN", token)
-                .body(form)
-                .retrieve()
-                .toBodilessEntity();
+        public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
+            MrDiff[] diffs = client.get()
+                    .uri(baseUrl + "/projects/{pid}/merge_requests/{mr}/diffs", Map.of("pid", projectId, "mr", mrId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(MrDiff[].class);
+            return diffs == null ? List.of() : Arrays.asList(diffs);
+        }
+
+        public List<MrVersion> fetchMrVersions(long projectId, int mrId) {
+            MrVersion[] versions = client.get()
+                    .uri(baseUrl + "/projects/{pid}/merge_requests/{mr}/versions", Map.of("pid", projectId, "mr", mrId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(MrVersion[].class);
+            return versions == null ? List.of() : Arrays.asList(versions);
+        }
+
+        public void createMrDiscussion(long projectId,
+                                       int mrId,
+                                       String baseSha,
+                                       String headSha,
+                                       String startSha,
+                                       String filePath,
+                                       Integer newLine,
+                                       Integer oldLine,
+                                       String body) {
+            MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+            form.add("position[position_type]", "text");
+            form.add("position[base_sha]", baseSha);
+            form.add("position[head_sha]", headSha);
+            form.add("position[start_sha]", startSha);
+            form.add("position[new_path]", filePath);
+            form.add("position[old_path]", filePath);
+            if (newLine != null) {
+                form.add("position[new_line]", String.valueOf(newLine));
+            }
+            if (oldLine != null) {
+                form.add("position[old_line]", String.valueOf(oldLine));
+            }
+            form.add("body", body == null ? "" : body);
+
+            client.post()
+                    .uri(baseUrl + "/projects/{pid}/merge_requests/{mr}/discussions", Map.of("pid", projectId, "mr", mrId))
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .toBodilessEntity();
+        }
+
+
+        public String fetchMrRawDiffs(long projectId, int mrId) {
+            String rawDiffs = client.get()
+                    .uri(baseUrl + "/projects/{pid}/merge_requests/{mr}/raw_diffs", Map.of("pid", projectId, "mr", mrId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(String.class);
+            return rawDiffs;
+        }
     }
 
-    public String fetchMrRawDiffs(long projectId, int mrId) {
-        String rawDiffs = restClient.get()
-                .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/raw_diffs", Map.of("pid", projectId, "mr", mrId))
-                .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
-                .retrieve()
-                .body(String.class);
-        return rawDiffs;
-    }
 
 }

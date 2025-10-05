@@ -27,6 +27,7 @@ public class MrAdoptService {
     private final GitLabService gitLabService;
     private final AddressableDiffBuilder addressableDiffBuilder;
     private final GitTokenService gitTokenService;
+    private final GitLabClientFactory gitLabClientFactory;
 
     public void adoptRecommendation(long detailId) {
         MrAnalysisDetailEntity detail = detailRepository.findById(detailId)
@@ -41,8 +42,9 @@ public class MrAdoptService {
         // Resolve token by parsing group path from MR URL
         var parsedUrl = gitLabService.parseMrUrl(mrInfo.getWebUrl());
         String token = gitTokenService.resolveTokenForGroup(parsedUrl.getProjectFullPath());
+        var gitLabSession = gitLabService.withToken(token);
 
-        List<MrVersion> versions = gitLabService.fetchMrVersions(projectId, mrId, token);
+        List<MrVersion> versions = gitLabSession.fetchMrVersions(projectId, mrId);
         if (versions == null || versions.isEmpty()) {
             throw new IllegalStateException("No versions found for MR " + mrId);
         }
@@ -55,7 +57,7 @@ public class MrAdoptService {
         }
 
         // fetch diffs (latest head verified above) and build anchor index
-        var diffs = gitLabService.fetchMrDiffs(projectId, mrId, token);
+        var diffs = gitLabSession.fetchMrDiffs(projectId, mrId);
         var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
         var index = annotated.getIndex();
         Integer newLine = null;
@@ -105,7 +107,7 @@ public class MrAdoptService {
             if (newLine == null) throw new IllegalStateException("New file requires new_line");
         }
 
-        gitLabService.createMrDiscussion(
+        gitLabSession.createMrDiscussion(
                 projectId,
                 mrId,
                 latest.getBase_commit_sha(),
@@ -114,8 +116,7 @@ public class MrAdoptService {
                 filePathForPosition,
                 newLine,
                 oldLine,
-                detail.getRemediationSteps(),
-                token
+                detail.getRemediationSteps()
         );
 
         // Mark as adopted on success
