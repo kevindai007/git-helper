@@ -27,7 +27,7 @@ public class MrAdoptService {
     private final GitLabService gitLabService;
     private final AddressableDiffBuilder addressableDiffBuilder;
     private final GitTokenService gitTokenService;
-    private final GitLabClientFactory gitLabClientFactory;
+    private final GitLabRequestContext gitLabRequestContext;
 
     public void adoptRecommendation(long detailId) {
         MrAnalysisDetailEntity detail = detailRepository.findById(detailId)
@@ -42,9 +42,10 @@ public class MrAdoptService {
         // Resolve token by parsing group path from MR URL
         var parsedUrl = gitLabService.parseMrUrl(mrInfo.getWebUrl());
         String token = gitTokenService.resolveTokenForGroup(parsedUrl.getProjectFullPath());
-        var gitLabSession = gitLabService.withToken(token);
+        gitLabRequestContext.setGroupFullPath(parsedUrl.getProjectFullPath());
+        gitLabRequestContext.setToken(token);
 
-        List<MrVersion> versions = gitLabSession.fetchMrVersions(projectId, mrId);
+        List<MrVersion> versions = gitLabService.fetchMrVersions(projectId, mrId);
         if (versions == null || versions.isEmpty()) {
             throw new IllegalStateException("No versions found for MR " + mrId);
         }
@@ -57,7 +58,7 @@ public class MrAdoptService {
         }
 
         // fetch diffs (latest head verified above) and build anchor index
-        var diffs = gitLabSession.fetchMrDiffs(projectId, mrId);
+        var diffs = gitLabService.fetchMrDiffs(projectId, mrId);
         var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
         var index = annotated.getIndex();
         Integer newLine = null;
@@ -107,7 +108,7 @@ public class MrAdoptService {
             if (newLine == null) throw new IllegalStateException("New file requires new_line");
         }
 
-        gitLabSession.createMrDiscussion(
+        gitLabService.createMrDiscussion(
                 projectId,
                 mrId,
                 latest.getBase_commit_sha(),

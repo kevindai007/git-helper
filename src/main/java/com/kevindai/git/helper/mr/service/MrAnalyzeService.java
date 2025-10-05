@@ -32,7 +32,7 @@ public class MrAnalyzeService {
     private final AddressableDiffBuilder addressableDiffBuilder;
     private final MrAnalysisDetailService mrAnalysisDetailService;
     private final GitTokenService gitTokenService;
-    private final GitLabClientFactory gitLabClientFactory;
+    private final GitLabRequestContext gitLabRequestContext;
 
     @Transactional
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
@@ -40,10 +40,11 @@ public class MrAnalyzeService {
         // Resolve token by group full path (ParsedMrUrl.projectFullPath holds the group hierarchy)
         String groupFullPath = parsedUrl.getProjectFullPath();
         String token = gitTokenService.resolveTokenForGroup(groupFullPath);
-        var gitLabSession = gitLabService.withToken(token);
-        long groupId = gitLabSession.fetchGroupId(parsedUrl);
-        long projectId = gitLabSession.fetchProjectId(groupId, parsedUrl.getProjectPath());
-        MrDetail mrDetail = gitLabSession.fetchMrDetails(projectId, parsedUrl.getMrId());
+        gitLabRequestContext.setGroupFullPath(groupFullPath);
+        gitLabRequestContext.setToken(token);
+        long groupId = gitLabService.fetchGroupId(parsedUrl);
+        long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
+        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
         if (mrDetail == null) {
             throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
         }
@@ -69,7 +70,7 @@ public class MrAnalyzeService {
             log.info("MR info created for new sha. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
         }
 
-        var diffs = gitLabSession.fetchMrDiffs(projectId, parsedUrl.getMrId());
+        var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
         var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
         // Stage 1: analyze per-file to stay within token limits
         for (var d : diffs) {
