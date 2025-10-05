@@ -80,9 +80,17 @@ public class MrAnalyzeService {
                 .build();
     }
 
+    public LlmAnalysisReport buildNoIssuesReport() {
+        var report = new LlmAnalysisReport();
+        report.setSchemaVersion("1.0");
+        report.setFindings(List.of());
+        report.setSummaryMarkdown("No issue found.");
+        return report;
+    }
+
     private LlmAnalysisReport buildReportFromDetails(MrInfoEntity mrInfo, List<MrAnalysisDetailEntity> details) {
         if (details == null || details.isEmpty()) {
-            return null;
+            return buildNoIssuesReport();
         }
         var report = new LlmAnalysisReport();
         report.setSchemaVersion("1.0");
