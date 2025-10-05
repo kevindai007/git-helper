@@ -115,32 +115,12 @@ public class JavaBestPractice {
               ],
               "summaryMarkdown": "string"
             }
+            
+            Anchor Usage(for anchorId and anchorSide in location):
+            - Diff lines include anchors like: <<A#12|N|path|line>> for new/context, and <<A#13|O|path|line>> for removed (old) lines.
+            - In each finding.location, copy an existing anchor id exactly (e.g., A#12) and set anchorSide to "new" for N or "old" for O.
+            - Do NOT invent anchors or compute line numbers; only use anchors present in the diff.
+            - If text appears on both removed and new/context lines, prefer the new/context (N) anchor.
 
-            Example:
-            {
-              "schemaVersion": "1.0",
-              "promptType": "JAVA",
-              "findings": [
-                {
-                  "id": "31",
-                  "severity": "medium",
-                  "category": "maintainability",
-                  "title": "Remove debugging statement",
-                  "description": "There is a debugging statement in 'src/main/java/com/kevindai/base/tenantseparate/multitenancy/web/WebConfig.java' that should be removed.",
-                  "location": {
-                    "file": "src/main/java/com/kevindai/base/tenantseparate/multitenancy/web/WebConfig.java",
-                    "lineType": "new_line",
-                    "startLine": 17,
-                    "anchorId": "A#235",
-                    "anchorSide": "new"
-                  },
-                  "evidence": "this is some for testing; what's the",
-                  "remediation": { "steps": "Remove the line containing the debugging statement." },
-                  "confidence": 0.8,
-                  "tags": ["cleanup", "debugging"]
-                }
-              ],
-              "summaryMarkdown": "..."
-            }
             """;
 }

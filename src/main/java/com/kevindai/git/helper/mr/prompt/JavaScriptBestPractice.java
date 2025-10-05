@@ -103,5 +103,11 @@ public class JavaScriptBestPractice {
               ],
               "summaryMarkdown": "string"
             }
+            
+            Anchor Usage(for anchorId and anchorSide in location):
+            - Diff lines include anchors like: <<A#12|N|path|line>> for new/context, and <<A#13|O|path|line>> for removed (old) lines.
+            - In each finding.location, copy an existing anchor id exactly (e.g., A#12) and set anchorSide to "new" for N or "old" for O.
+            - Do NOT invent anchors or compute line numbers; only use anchors present in the diff.
+            - If text appears on both removed and new/context lines, prefer the new/context (N) anchor.
             """;
 }
