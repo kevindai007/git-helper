@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -25,12 +26,6 @@ public class MrAnalysisDetailService {
                         Map<String, AddressableDiffBuilder.AnchorEntry> anchorIndex) {
         if (mrInfo == null || report == null || report.getFindings() == null) {
             return;
-        }
-
-        try {
-            analysisDetailRepository.deleteByMrInfoId(mrInfo.getId());
-        } catch (Exception e) {
-            log.warn("Failed clearing previous analysis details for mr_info_id={}", mrInfo.getId());
         }
 
         Instant now = Instant.now();
@@ -81,5 +76,10 @@ public class MrAnalysisDetailService {
             e.setUpdatedAt(now);
             analysisDetailRepository.save(e);
         }
+    }
+
+    public List<MrAnalysisDetailEntity> loadDetails(Long mrInfoId) {
+        if (mrInfoId == null) return java.util.List.of();
+        return analysisDetailRepository.findByMrInfoIdOrderBySeverity(mrInfoId);
     }
 }

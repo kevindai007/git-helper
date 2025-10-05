@@ -78,10 +78,14 @@ public class GitLabService {
 
     public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
         // GET /namespaces?search={GROUP_PATH}
+        return fetchGroupId(parsedMrUrl, gitConfig.getToken());
+    }
+
+    public long fetchGroupId(ParsedMrUrl parsedMrUrl, String token) {
         Namespace[] namespaces = restClient.get()
                 .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .header("PRIVATE-TOKEN", token)
                 .retrieve()
                 .body(Namespace[].class);
 
@@ -97,10 +101,14 @@ public class GitLabService {
 
     public long fetchProjectId(long groupId, String projectPath) {
         // GET /groups/{GROUP_ID}/projects?search={PROJECT_PATH}
+        return fetchProjectId(groupId, projectPath, gitConfig.getToken());
+    }
+
+    public long fetchProjectId(long groupId, String projectPath, String token) {
         Project[] projects = restClient.get()
                 .uri(gitConfig.getUrl() + "/groups/{gid}/projects?search={q}", Map.of("gid", groupId, "q", projectPath))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .header("PRIVATE-TOKEN", token)
                 .retrieve()
                 .body(Project[].class);
 
@@ -116,30 +124,42 @@ public class GitLabService {
 
     public MrDetail fetchMrDetails(long projectId, int mrId) {
         // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}
+        return fetchMrDetails(projectId, mrId, gitConfig.getToken());
+
+    }
+
+    public MrDetail fetchMrDetails(long projectId, int mrId, String token) {
         return restClient.get().uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .header("PRIVATE-TOKEN", token)
                 .retrieve()
                 .body(MrDetail.class);
 
     }
 
     public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
-        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}/diffs
+        return fetchMrDiffs(projectId, mrId, gitConfig.getToken());
+    }
+
+    public List<MrDiff> fetchMrDiffs(long projectId, int mrId, String token) {
         MrDiff[] diffs = restClient.get()
                 .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/diffs", Map.of("pid", projectId, "mr", mrId))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .header("PRIVATE-TOKEN", token)
                 .retrieve()
                 .body(MrDiff[].class);
         return diffs == null ? List.of() : Arrays.asList(diffs);
     }
 
     public List<MrVersion> fetchMrVersions(long projectId, int mrId) {
+        return fetchMrVersions(projectId, mrId, gitConfig.getToken());
+    }
+
+    public List<MrVersion> fetchMrVersions(long projectId, int mrId, String token) {
         MrVersion[] versions = restClient.get()
                 .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/versions", Map.of("pid", projectId, "mr", mrId))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .header("PRIVATE-TOKEN", token)
                 .retrieve()
                 .body(MrVersion[].class);
         return versions == null ? List.of() : Arrays.asList(versions);
@@ -154,6 +174,19 @@ public class GitLabService {
                                    Integer newLine,
                                    Integer oldLine,
                                    String body) {
+        createMrDiscussion(projectId, mrId, baseSha, headSha, startSha, filePath, newLine, oldLine, body, gitConfig.getToken());
+    }
+
+    public void createMrDiscussion(long projectId,
+                                   int mrId,
+                                   String baseSha,
+                                   String headSha,
+                                   String startSha,
+                                   String filePath,
+                                   Integer newLine,
+                                   Integer oldLine,
+                                   String body,
+                                   String token) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("position[position_type]", "text");
         form.add("position[base_sha]", baseSha);
@@ -172,7 +205,7 @@ public class GitLabService {
         restClient.post()
                 .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/discussions", Map.of("pid", projectId, "mr", mrId))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
+                .header("PRIVATE-TOKEN", token)
                 .body(form)
                 .retrieve()
                 .toBodilessEntity();

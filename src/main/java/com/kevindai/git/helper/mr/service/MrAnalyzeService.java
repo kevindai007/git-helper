@@ -10,6 +10,7 @@ import com.kevindai.git.helper.mr.dto.llm.Finding;
 import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Comparator;
+import com.kevindai.git.helper.mr.model.Severity;
 
 @Slf4j
 @Service
@@ -28,12 +31,17 @@ public class MrAnalyzeService {
     private final MrAnalysisDetailRepository analysisDetailRepository;
     private final AddressableDiffBuilder addressableDiffBuilder;
     private final MrAnalysisDetailService mrAnalysisDetailService;
+    private final GitTokenService gitTokenService;
 
+    @Transactional
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
         var parsedUrl = gitLabService.parseMrUrl(req.getMrUrl());
-        long groupId = gitLabService.fetchGroupId(parsedUrl);
-        long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
-        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
+        // Resolve token by group full path (ParsedMrUrl.projectFullPath holds the group hierarchy)
+        String groupFullPath = parsedUrl.getProjectFullPath();
+        String token = gitTokenService.resolveTokenForGroup(groupFullPath);
+        long groupId = gitLabService.fetchGroupId(parsedUrl, token);
+        long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath(), token);
+        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId(), token);
         if (mrDetail == null) {
             throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
         }
@@ -42,7 +50,7 @@ public class MrAnalyzeService {
         MrInfoEntity targetInfo;
         if (existingMrInfo.isPresent()) {
             targetInfo = existingMrInfo.get();
-            var details = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
+            var details = mrAnalysisDetailService.loadDetails(targetInfo.getId());
             if (details != null && !details.isEmpty()) {
                 log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
                 LlmAnalysisReport report = buildReportFromDetails(targetInfo, details);
@@ -59,7 +67,7 @@ public class MrAnalyzeService {
             log.info("MR info created for new sha. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
         }
 
-        var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
+        var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId(), token);
         var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
         // Stage 1: analyze per-file to stay within token limits
         for (var d : diffs) {
@@ -73,7 +81,7 @@ public class MrAnalyzeService {
         }
 
         // Build final report from persisted details (ensures IDs correct) and save summary
-        var savedDetails = analysisDetailRepository.findByMrInfoId(targetInfo.getId());
+        var savedDetails = mrAnalysisDetailService.loadDetails(targetInfo.getId());
         LlmAnalysisReport responseReport = buildReportFromDetails(targetInfo, savedDetails);
         targetInfo.setUpdatedAt(Instant.now());
         targetInfo.setSummaryMarkdown(responseReport.getSummaryMarkdown());

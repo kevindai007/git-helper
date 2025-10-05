@@ -78,3 +78,16 @@ alter table public.mr_analysis_detail
 alter table mr_analysis_detail add column anchor_id varchar(256);
 alter table mr_analysis_detail add column anchor_side varchar(16);
 alter table mr_info add column if not exists summary_markdown text default '';
+
+-- Token management table: default token and per-group tokens (group can be any depth path)
+create table if not exists public.git_token
+(
+    id          bigint generated always as identity primary key,
+    group_path  varchar(512), -- null means default token
+    token       varchar(512)                           not null,
+    is_default  boolean                                not null default false,
+    created_at  timestamp with time zone default now() not null,
+    updated_at  timestamp with time zone default now() not null
+);
+
+create index if not exists idx_git_token_group on public.git_token (group_path);

@@ -87,13 +87,7 @@ public class JavaBestPractice {
             
             You should focus on understanding the purpose of the code changes and provide actionable insights When analyzing code changes.
             **Analysis Focus**: Prioritize modern Java patterns, Spring framework best practices, and enterprise-grade code quality. Emphasize type safety, performance, and maintainability in Java ecosystem context.
-            You must return ONLY a single JSON object in the structure below.
 
-            
-            Output Format (Strict):
-            - Respond with a single JSON object only. No prose, no markdown.
-            - Use these fields exactly. Omit nulls if not applicable.
-            - If no issues: return an empty `findings` array and a brief `summaryMarkdown`.
 
             Schema:
             {

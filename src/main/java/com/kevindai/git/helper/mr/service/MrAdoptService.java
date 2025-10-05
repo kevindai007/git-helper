@@ -26,6 +26,7 @@ public class MrAdoptService {
     private final MrInfoEntityRepository mrInfoRepository;
     private final GitLabService gitLabService;
     private final AddressableDiffBuilder addressableDiffBuilder;
+    private final GitTokenService gitTokenService;
 
     public void adoptRecommendation(long detailId) {
         MrAnalysisDetailEntity detail = detailRepository.findById(detailId)
@@ -37,7 +38,11 @@ public class MrAdoptService {
         long projectId = detail.getProjectId();
         int mrId = Math.toIntExact(detail.getMrId());
 
-        List<MrVersion> versions = gitLabService.fetchMrVersions(projectId, mrId);
+        // Resolve token by parsing group path from MR URL
+        var parsedUrl = gitLabService.parseMrUrl(mrInfo.getWebUrl());
+        String token = gitTokenService.resolveTokenForGroup(parsedUrl.getProjectFullPath());
+
+        List<MrVersion> versions = gitLabService.fetchMrVersions(projectId, mrId, token);
         if (versions == null || versions.isEmpty()) {
             throw new IllegalStateException("No versions found for MR " + mrId);
         }
@@ -50,7 +55,7 @@ public class MrAdoptService {
         }
 
         // fetch diffs (latest head verified above) and build anchor index
-        var diffs = gitLabService.fetchMrDiffs(projectId, mrId);
+        var diffs = gitLabService.fetchMrDiffs(projectId, mrId, token);
         var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
         var index = annotated.getIndex();
         Integer newLine = null;
@@ -109,7 +114,8 @@ public class MrAdoptService {
                 filePathForPosition,
                 newLine,
                 oldLine,
-                detail.getRemediationSteps()
+                detail.getRemediationSteps(),
+                token
         );
 
         // Mark as adopted on success
