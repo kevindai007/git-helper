@@ -75,7 +75,7 @@ public class GeneralBestPractice {
                   "title": "string",
                   "description": "string",
                   "location": { "file": "path", "lineType": "old_line|new_line", "startLine": 0, "anchorId": "A#123", "anchorSide": "new|old" },
-                  "evidence": "string (brief snippet)",
+                  "evidence": "string (brief snippet, format to string)",
                   "remediation": { "steps": "string" },
                   "confidence": 0.0,
                   "tags": ["string"]

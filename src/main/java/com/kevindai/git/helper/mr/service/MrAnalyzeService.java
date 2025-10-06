@@ -1,5 +1,8 @@
 package com.kevindai.git.helper.mr.service;
 
+import java.time.Instant;
+import java.util.List;
+
 import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
 import com.kevindai.git.helper.entity.MrInfoEntity;
 import com.kevindai.git.helper.mr.dto.AnalysisStatus;
@@ -16,15 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Comparator;
-import com.kevindai.git.helper.mr.model.Severity;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MrAnalyzeService {
+
     private final GitLabService gitLabService;
     private final LlmAnalysisService llmAnalysisService;
     private final MrInfoEntityRepository mrInfoEntityRepository;
@@ -75,12 +74,20 @@ public class MrAnalyzeService {
         // Stage 1: analyze per-file to stay within token limits
         for (var d : diffs) {
             String path = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : d.getOld_path();
-            if (!StringUtils.hasText(path)) continue;
+            if (!StringUtils.hasText(path)) {
+                continue;
+            }
             String fileSection = AddressableDiffBuilder.sliceAnnotatedForPath(annotated.getContent(), path);
-            if (!StringUtils.hasText(fileSection)) continue;
+            if (!StringUtils.hasText(fileSection)) {
+                continue;
+            }
             // Single-file prompt selection by passing only this diff
-            LlmAnalysisReport piece = llmAnalysisService.analyzeDiff(fileSection, java.util.List.of(d));
-            mrAnalysisDetailService.persist(targetInfo, piece, annotated.getIndex());
+            try {
+                LlmAnalysisReport piece = llmAnalysisService.analyzeDiff(fileSection, java.util.List.of(d));
+                mrAnalysisDetailService.persist(targetInfo, piece, annotated.getIndex());
+            } catch (Exception e) {
+                log.error("Error analyzing diff for file: {}", path, e);
+            }
         }
 
         // Build final report from persisted details (ensures IDs correct) and save summary
