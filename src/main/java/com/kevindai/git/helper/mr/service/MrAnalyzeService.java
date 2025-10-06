@@ -2,6 +2,9 @@ package com.kevindai.git.helper.mr.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
 import com.kevindai.git.helper.entity.MrInfoEntity;
@@ -11,7 +14,6 @@ import com.kevindai.git.helper.mr.dto.MrAnalyzeResponse;
 import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
 import com.kevindai.git.helper.mr.dto.llm.Finding;
 import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
-import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +29,11 @@ public class MrAnalyzeService {
     private final GitLabService gitLabService;
     private final LlmAnalysisService llmAnalysisService;
     private final MrInfoEntityRepository mrInfoEntityRepository;
-    private final MrAnalysisDetailRepository analysisDetailRepository;
     private final AddressableDiffBuilder addressableDiffBuilder;
     private final MrAnalysisDetailService mrAnalysisDetailService;
     private final GitTokenService gitTokenService;
     private final GitLabRequestContext gitLabRequestContext;
+    private final Executor mrAnalysisExecutor;
 
     @Transactional
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
@@ -41,66 +43,94 @@ public class MrAnalyzeService {
         String token = gitTokenService.resolveTokenForGroup(groupFullPath);
         gitLabRequestContext.setGroupFullPath(groupFullPath);
         gitLabRequestContext.setToken(token);
-        long groupId = gitLabService.fetchGroupId(parsedUrl);
-        long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
-        MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
-        if (mrDetail == null) {
-            throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
-        }
 
-        var existingMrInfo = mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha());
-        MrInfoEntity targetInfo;
-        if (existingMrInfo.isPresent()) {
-            targetInfo = existingMrInfo.get();
-            var details = mrAnalysisDetailService.loadDetails(targetInfo.getId());
-            if (details != null && !details.isEmpty()) {
-                log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
-                LlmAnalysisReport report = buildReportFromDetails(targetInfo, details);
-                return MrAnalyzeResponse.builder()
-                        .status(AnalysisStatus.SUCCESS)
-                        .mrUrl(req.getMrUrl())
-                        .analysisResult(report)
-                        .build();
+        try {
+            long groupId = gitLabService.fetchGroupId(parsedUrl);
+            long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
+            MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
+            if (mrDetail == null) {
+                throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
             }
-        } else {
-            // Create a new mr_info row for this sha (keep history by sha)
-            targetInfo = converter(mrDetail);
-            targetInfo = mrInfoEntityRepository.save(targetInfo);
-            log.info("MR info created for new sha. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
-        }
 
-        var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
-        var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
-        // Stage 1: analyze per-file to stay within token limits
-        for (var d : diffs) {
-            String path = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : d.getOld_path();
-            if (!StringUtils.hasText(path)) {
-                continue;
+            var existingMrInfo = mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha());
+            MrInfoEntity targetInfo;
+            if (existingMrInfo.isPresent()) {
+                targetInfo = existingMrInfo.get();
+                var details = mrAnalysisDetailService.loadDetails(targetInfo.getId());
+                if (details != null && !details.isEmpty()) {
+                    log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
+                    LlmAnalysisReport report = buildReportFromDetails(targetInfo, details);
+                    return MrAnalyzeResponse.builder()
+                            .status(AnalysisStatus.SUCCESS)
+                            .mrUrl(req.getMrUrl())
+                            .analysisResult(report)
+                            .build();
+                }
+            } else {
+                // Create a new mr_info row for this sha (keep history by sha)
+                targetInfo = converter(mrDetail);
+                targetInfo = mrInfoEntityRepository.save(targetInfo);
+                log.info("MR info created for new sha. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
             }
-            String fileSection = AddressableDiffBuilder.sliceAnnotatedForPath(annotated.getContent(), path);
-            if (!StringUtils.hasText(fileSection)) {
-                continue;
-            }
-            // Single-file prompt selection by passing only this diff
-            try {
-                LlmAnalysisReport piece = llmAnalysisService.analyzeDiff(fileSection, java.util.List.of(d));
-                mrAnalysisDetailService.persist(targetInfo, piece, annotated.getIndex());
-            } catch (Exception e) {
-                log.error("Error analyzing diff for file: {}", path, e);
-            }
-        }
 
-        // Build final report from persisted details (ensures IDs correct) and save summary
-        var savedDetails = mrAnalysisDetailService.loadDetails(targetInfo.getId());
-        LlmAnalysisReport responseReport = buildReportFromDetails(targetInfo, savedDetails);
-        targetInfo.setUpdatedAt(Instant.now());
-        targetInfo.setSummaryMarkdown(responseReport.getSummaryMarkdown());
-        mrInfoEntityRepository.save(targetInfo);
-        return MrAnalyzeResponse.builder()
-                .status(AnalysisStatus.SUCCESS)
-                .mrUrl(req.getMrUrl())
-                .analysisResult(responseReport)
-                .build();
+            var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
+            var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
+            // Stage 1: analyze per-file to stay within token limits
+            List<CompletableFuture<AnalysisResult>> futures = diffs.stream()
+                    .map(d -> {
+                        String path = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : d.getOld_path();
+                        if (!StringUtils.hasText(path)) {
+                            return null;
+                        }
+                        String fileSection = AddressableDiffBuilder.sliceAnnotatedForPath(annotated.getContent(), path);
+                        if (!StringUtils.hasText(fileSection)) {
+                            return null;
+                        }
+                        return CompletableFuture.supplyAsync(() -> {
+                            try {
+                                LlmAnalysisReport piece = llmAnalysisService.analyzeDiff(fileSection, java.util.List.of(d));
+                                return new AnalysisResult(path, piece);
+                            } catch (Exception e) {
+                                log.error("Error analyzing diff for file: {}", path, e);
+                                return null; // swallow; will be filtered later
+                            }
+                        }, mrAnalysisExecutor);
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            // Wait for all (propagate interruption if any)
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+            // Gather successful results
+            List<AnalysisResult> results = futures.stream()
+                    .map(CompletableFuture::join)
+                    .filter(r -> r != null && r.piece() != null)
+                    .toList();
+
+            // Persist sequentially (single thread / current transaction)
+            for (AnalysisResult r : results) {
+                try {
+                    mrAnalysisDetailService.persist(targetInfo, r.piece(), annotated.getIndex());
+                } catch (Exception e) {
+                    log.error("Persist failed for file: {}", r.path(), e);
+                }
+            }
+
+            // Build final report from persisted details (ensures IDs correct) and save summary
+            var savedDetails = mrAnalysisDetailService.loadDetails(targetInfo.getId());
+            LlmAnalysisReport responseReport = buildReportFromDetails(targetInfo, savedDetails);
+            targetInfo.setUpdatedAt(Instant.now());
+            targetInfo.setSummaryMarkdown(responseReport.getSummaryMarkdown());
+            mrInfoEntityRepository.save(targetInfo);
+            return MrAnalyzeResponse.builder()
+                    .status(AnalysisStatus.SUCCESS)
+                    .mrUrl(req.getMrUrl())
+                    .analysisResult(responseReport)
+                    .build();
+        } finally {
+            gitLabRequestContext.clear();
+        }
     }
 
     public LlmAnalysisReport buildNoIssuesReport() {
@@ -176,4 +206,9 @@ public class MrAnalyzeService {
         entity.setUpdatedAt(Instant.now());
         return entity;
     }
+
+    private record AnalysisResult(String path, LlmAnalysisReport piece) {
+
+    }
+
 }

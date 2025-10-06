@@ -1,16 +1,32 @@
 package com.kevindai.git.helper.mr.service;
 
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.RequestScope;
 
-@Getter
-@Setter
 @Component
-@RequestScope
 public class GitLabRequestContext {
-    private String groupFullPath;
-    private String token;
+
+    private final InheritableThreadLocal<String> groupFullPath = new InheritableThreadLocal<>();
+    private final InheritableThreadLocal<String> token = new InheritableThreadLocal<>();
+
+    public void setGroupFullPath(String value) {
+        groupFullPath.set(value);
+    }
+
+    public String getGroupFullPath() {
+        return groupFullPath.get();
+    }
+
+    public void setToken(String value) {
+        token.set(value);
+    }
+
+    public String getToken() {
+        return token.get();
+    }
+
+    public void clear() {
+        groupFullPath.remove();
+        token.remove();
+    }
 }
 
