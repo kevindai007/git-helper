@@ -2,19 +2,15 @@ package com.kevindai.git.helper.mr.service;
 
 import com.kevindai.git.helper.config.GitConfig;
 import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
-import com.kevindai.git.helper.mr.dto.gitlab.MrDetail;
-import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
-import com.kevindai.git.helper.mr.dto.gitlab.MrVersion;
-import com.kevindai.git.helper.mr.dto.gitlab.Namespace;
-import com.kevindai.git.helper.mr.dto.gitlab.Project;
+import com.kevindai.git.helper.mr.dto.gitlab.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -28,8 +24,7 @@ import java.util.Optional;
 public class GitLabService {
 
     private final GitConfig gitConfig;
-
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
 
     // java
     public ParsedMrUrl parseMrUrl(String mrUrl) {
@@ -85,11 +80,9 @@ public class GitLabService {
 
 
     public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
-        // GET /namespaces?search={GROUP_PATH}
         Namespace[] namespaces = restClient.get()
                 .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(Namespace[].class);
 
@@ -105,11 +98,9 @@ public class GitLabService {
     }
 
     public long fetchProjectId(long groupId, String projectPath) {
-        // GET /groups/{GROUP_ID}/projects?search={PROJECT_PATH}
         Project[] projects = restClient.get()
                 .uri(gitConfig.getUrl() + "/groups/{gid}/projects?search={q}", Map.of("gid", groupId, "q", projectPath))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(Project[].class);
 
@@ -125,21 +116,16 @@ public class GitLabService {
     }
 
     public MrDetail fetchMrDetails(long projectId, int mrId) {
-        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}
         return restClient.get().uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}", Map.of("pid", projectId, "mr", mrId))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(MrDetail.class);
-
     }
 
     public List<MrDiff> fetchMrDiffs(long projectId, int mrId) {
-        // GET /projects/{PROJECT_ID}/merge_requests/{MR_ID}/diffs
         MrDiff[] diffs = restClient.get()
                 .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/diffs", Map.of("pid", projectId, "mr", mrId))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(MrDiff[].class);
         return diffs == null ? List.of() : Arrays.asList(diffs);
@@ -149,7 +135,6 @@ public class GitLabService {
         MrVersion[] versions = restClient.get()
                 .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/versions", Map.of("pid", projectId, "mr", mrId))
                 .accept(MediaType.APPLICATION_JSON)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .retrieve()
                 .body(MrVersion[].class);
         return versions == null ? List.of() : Arrays.asList(versions);
@@ -182,25 +167,10 @@ public class GitLabService {
         restClient.post()
                 .uri(gitConfig.getUrl() + "/projects/{pid}/merge_requests/{mr}/discussions", Map.of("pid", projectId, "mr", mrId))
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .header("PRIVATE-TOKEN", gitConfig.getToken())
                 .body(form)
                 .retrieve()
                 .toBodilessEntity();
     }
 
-    public String formatDiffs(List<MrDiff> diffs) {
-        if (diffs == null || diffs.isEmpty()) {
-            return "(No diffs found)";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (MrDiff d : diffs) {
-            String file = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : "<unknown>";
-            sb.append("--- File: ").append(file).append(" ---\n");
-            if (d.getDiff() != null) {
-                sb.append(d.getDiff()).append("\n");
-            }
-            sb.append("...\n");
-        }
-        return sb.toString();
-    }
+
 }

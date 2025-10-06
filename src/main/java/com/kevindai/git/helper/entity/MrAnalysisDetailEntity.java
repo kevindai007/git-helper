@@ -46,23 +46,13 @@ public class MrAnalysisDetailEntity {
     @Column(name = "start_line")
     private Integer startLine;
 
-    @Column(name = "end_line")
-    private Integer endLine;
-
-    @Column(name = "start_col")
-    private Integer startCol;
-
-    @Column(name = "end_col")
-    private Integer endCol;
-
     @Column(name = "evidence", columnDefinition = "TEXT")
     private String evidence;
 
     @Column(name = "remediation_steps", columnDefinition = "TEXT")
     private String remediationSteps;
 
-    @Column(name = "remediation_diff", columnDefinition = "TEXT")
-    private String remediationDiff;
+    // Removed remediation_diff; we keep only remediation steps as text guidance
 
     @Column(name = "confidence")
     private Double confidence;
@@ -70,10 +60,18 @@ public class MrAnalysisDetailEntity {
     @Column(name = "tags_json", columnDefinition = "TEXT")
     private String tagsJson;
 
+    @Column(name = "anchor_id", length = 256)
+    private String anchorId;
+
+    @Column(name = "anchor_side", length = 16)
+    private String anchorSide; // new|old|context
+
+    @Column(name = "status", nullable = false)
+    private Integer status; // 0 = not adopted, 1 = adopted
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }
-

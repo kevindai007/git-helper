@@ -10,13 +10,16 @@ import com.kevindai.git.helper.mr.dto.llm.Finding;
 import com.kevindai.git.helper.mr.dto.llm.LlmAnalysisReport;
 import com.kevindai.git.helper.repository.MrAnalysisDetailRepository;
 import com.kevindai.git.helper.repository.MrInfoEntityRepository;
-import com.kevindai.git.helper.utils.JsonUtils;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Comparator;
+import com.kevindai.git.helper.mr.model.Severity;
 
 @Slf4j
 @Service
@@ -26,65 +29,84 @@ public class MrAnalyzeService {
     private final LlmAnalysisService llmAnalysisService;
     private final MrInfoEntityRepository mrInfoEntityRepository;
     private final MrAnalysisDetailRepository analysisDetailRepository;
+    private final AddressableDiffBuilder addressableDiffBuilder;
+    private final MrAnalysisDetailService mrAnalysisDetailService;
+    private final GitTokenService gitTokenService;
+    private final GitLabRequestContext gitLabRequestContext;
 
+    @Transactional
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
         var parsedUrl = gitLabService.parseMrUrl(req.getMrUrl());
+        // Resolve token by group full path (ParsedMrUrl.projectFullPath holds the group hierarchy)
+        String groupFullPath = parsedUrl.getProjectFullPath();
+        String token = gitTokenService.resolveTokenForGroup(groupFullPath);
+        gitLabRequestContext.setGroupFullPath(groupFullPath);
+        gitLabRequestContext.setToken(token);
         long groupId = gitLabService.fetchGroupId(parsedUrl);
         long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
         MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
         if (mrDetail == null) {
             throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());
         }
-        var existingOpt = mrInfoEntityRepository.findByProjectIdAndMrId(projectId, (long) parsedUrl.getMrId());
-        if (existingOpt.isPresent()) {
-            MrInfoEntity existing = existingOpt.get();
-            if (existing.getSha() != null && existing.getSha().equals(mrDetail.getSha())) {
-                var details = analysisDetailRepository.findByMrInfoId(existing.getId());
-                if (details != null && !details.isEmpty()) {
-                    log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
-                    LlmAnalysisReport report = buildReportFromDetails(details);
-                    return MrAnalyzeResponse.builder()
-                            .status(AnalysisStatus.SUCCESS)
-                            .mrUrl(req.getMrUrl())
-                            .analysisResult(report)
-                            .build();
-                }
+
+        var existingMrInfo = mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha());
+        MrInfoEntity targetInfo;
+        if (existingMrInfo.isPresent()) {
+            targetInfo = existingMrInfo.get();
+            var details = mrAnalysisDetailService.loadDetails(targetInfo.getId());
+            if (details != null && !details.isEmpty()) {
+                log.info("MR unchanged with existing details, skip LLM. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
+                LlmAnalysisReport report = buildReportFromDetails(targetInfo, details);
+                return MrAnalyzeResponse.builder()
+                        .status(AnalysisStatus.SUCCESS)
+                        .mrUrl(req.getMrUrl())
+                        .analysisResult(report)
+                        .build();
             }
-            // sha has changed -> update
-            MrInfoEntity updated = converter(mrDetail);
-            updated.setId(existing.getId());
-            updated.setCreatedAt(existing.getCreatedAt());
-            mrInfoEntityRepository.save(updated);
-            log.info("MR updated due to sha change. projectId={}, mrId={}, oldSha={}, newSha={}",
-                    projectId, parsedUrl.getMrId(), existing.getSha(), mrDetail.getSha());
         } else {
-            // not exist -> insert
-            MrInfoEntity newEntity = converter(mrDetail);
-            mrInfoEntityRepository.save(newEntity);
-            log.info("MR inserted. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
+            // Create a new mr_info row for this sha (keep history by sha)
+            targetInfo = converter(mrDetail);
+            targetInfo = mrInfoEntityRepository.save(targetInfo);
+            log.info("MR info created for new sha. projectId={}, mrId={}, sha={}", projectId, parsedUrl.getMrId(), mrDetail.getSha());
         }
 
         var diffs = gitLabService.fetchMrDiffs(projectId, parsedUrl.getMrId());
-        String formatted = gitLabService.formatDiffs(diffs);
-        LlmAnalysisReport analysis = llmAnalysisService.analyzeDiff(formatted, diffs);
-        mrInfoEntityRepository.findByProjectIdAndMrIdAndSha(projectId, (long) parsedUrl.getMrId(), mrDetail.getSha()).ifPresent(entity -> {
-            entity.setAnalysisResult(JsonUtils.toJSONString(analysis));
-            entity.setUpdatedAt(Instant.now());
-            mrInfoEntityRepository.save(entity);
-            // Persist structured findings to detail table
-            llmAnalysisService.persistAnalysisDetails(entity, analysis);
-        });
+        var annotated = addressableDiffBuilder.buildAnnotatedWithIndex(diffs);
+        // Stage 1: analyze per-file to stay within token limits
+        for (var d : diffs) {
+            String path = StringUtils.hasText(d.getNew_path()) ? d.getNew_path() : d.getOld_path();
+            if (!StringUtils.hasText(path)) continue;
+            String fileSection = AddressableDiffBuilder.sliceAnnotatedForPath(annotated.getContent(), path);
+            if (!StringUtils.hasText(fileSection)) continue;
+            // Single-file prompt selection by passing only this diff
+            LlmAnalysisReport piece = llmAnalysisService.analyzeDiff(fileSection, java.util.List.of(d));
+            mrAnalysisDetailService.persist(targetInfo, piece, annotated.getIndex());
+        }
 
+        // Build final report from persisted details (ensures IDs correct) and save summary
+        var savedDetails = mrAnalysisDetailService.loadDetails(targetInfo.getId());
+        LlmAnalysisReport responseReport = buildReportFromDetails(targetInfo, savedDetails);
+        targetInfo.setUpdatedAt(Instant.now());
+        targetInfo.setSummaryMarkdown(responseReport.getSummaryMarkdown());
+        mrInfoEntityRepository.save(targetInfo);
         return MrAnalyzeResponse.builder()
                 .status(AnalysisStatus.SUCCESS)
                 .mrUrl(req.getMrUrl())
-                .analysisResult(analysis)
+                .analysisResult(responseReport)
                 .build();
     }
 
-    private LlmAnalysisReport buildReportFromDetails(java.util.List<MrAnalysisDetailEntity> details) {
+    public LlmAnalysisReport buildNoIssuesReport() {
+        var report = new LlmAnalysisReport();
+        report.setSchemaVersion("1.0");
+        report.setFindings(List.of());
+        report.setSummaryMarkdown("No issue found.");
+        return report;
+    }
+
+    private LlmAnalysisReport buildReportFromDetails(MrInfoEntity mrInfo, List<MrAnalysisDetailEntity> details) {
         if (details == null || details.isEmpty()) {
-            return null;
+            return buildNoIssuesReport();
         }
         var report = new LlmAnalysisReport();
         report.setSchemaVersion("1.0");
@@ -92,24 +114,27 @@ public class MrAnalyzeService {
         var findings = new java.util.ArrayList<Finding>();
         for (MrAnalysisDetailEntity d : details) {
             var f = new Finding();
+            if (d.getId() != null) {
+                f.setId(String.valueOf(d.getId()));
+            }
             f.setSeverity(d.getSeverity());
             f.setCategory(d.getCategory());
             f.setTitle(d.getTitle());
             f.setDescription(d.getDescription());
+            f.setStatus(d.getStatus());
             if (d.getFile() != null) {
                 var loc = new com.kevindai.git.helper.mr.dto.llm.Location();
                 loc.setFile(d.getFile());
                 loc.setStartLine(d.getStartLine());
-                loc.setEndLine(d.getEndLine());
-                loc.setStartCol(d.getStartCol());
-                loc.setEndCol(d.getEndCol());
+                loc.setLineType(d.getLineType());
+                loc.setAnchorId(d.getAnchorId());
+                loc.setAnchorSide(d.getAnchorSide());
                 f.setLocation(loc);
             }
             f.setEvidence(d.getEvidence());
-            if (StringUtils.hasText(d.getRemediationSteps()) || StringUtils.hasText(d.getRemediationDiff())) {
+            if (StringUtils.hasText(d.getRemediationSteps())) {
                 var rem = new com.kevindai.git.helper.mr.dto.llm.Remediation();
                 rem.setSteps(d.getRemediationSteps());
-                rem.setDiff(d.getRemediationDiff());
                 f.setRemediation(rem);
             }
             f.setConfidence(d.getConfidence());
@@ -123,6 +148,7 @@ public class MrAnalyzeService {
             findings.add(f);
         }
         report.setFindings(findings);
+        report.setSummaryMarkdown(mrInfo.getSummaryMarkdown());
         return report;
     }
 
@@ -142,6 +168,5 @@ public class MrAnalyzeService {
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         return entity;
-
     }
 }

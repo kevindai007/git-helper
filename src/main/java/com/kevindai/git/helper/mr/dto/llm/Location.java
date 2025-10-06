@@ -14,6 +14,8 @@ public class Location {
     private Integer endLine;
     private Integer startCol;
     private Integer endCol;
+    private String anchorId;   // e.g., N:<newPath>:<line> or O:<oldPath>:<line>
+    private String anchorSide; // new|old|context
 
     @Getter
     @AllArgsConstructor
@@ -24,4 +26,3 @@ public class Location {
         private final String value;
     }
 }
-

@@ -56,18 +56,6 @@ public class GeneralBestPractice {
                - Metrics/tracing where observability is important
 
             You should focus on understanding the purpose of the code changes and provide actionable insights When analyzing code changes.
-            Response Example:
-            1. (High)Suggestion: Use a more efficient algorithm for sorting.
-               Reasoning: The current implementation has a time complexity of O(n^2), which can be improved to O(n log n) using quicksort or mergesort.
-            2. (High)Suggestion: Add error handling for null inputs.
-               Reasoning: The current code does not handle null inputs, which could lead to runtime exceptions.
-            3. (Medium)Suggestion: Refactor the function into smaller, reusable components.
-               Reasoning: The current function is too long and complex, making it hard to read and maintain.
-            4. (Low)Suggestion: Use parameterized queries to prevent SQL injection.
-               Reasoning: The current implementation concatenates user input directly into SQL queries, which is a security risk.
-               
-               
-           You should follow the response example format exactly, and only respond with suggestions or "No significant issues found."     
 
             
             Output Format (Strict):
@@ -86,14 +74,20 @@ public class GeneralBestPractice {
                   "category": "correctness|performance|security|maintainability|style|docs|tests",
                   "title": "string",
                   "description": "string",
-                  "location": { "file": "path","lineType":"old_line", "startLine": 0, "endLine": 0, "startCol": 0, "endCol": 0 },
-                  "evidence": "string",
-                  "remediation": { "steps": "string", "diff": "suggested solution or empty" },
+                  "location": { "file": "path", "lineType": "old_line|new_line", "startLine": 0, "anchorId": "A#123", "anchorSide": "new|old" },
+                  "evidence": "string (brief snippet)",
+                  "remediation": { "steps": "string" },
                   "confidence": 0.0,
                   "tags": ["string"]
                 }
               ],
               "summaryMarkdown": "string"
             }
+            
+            Anchor Usage(for anchorId and anchorSide in location):
+            - Diff lines include anchors like: <<A#12|N|path|line>> for new/context, and <<A#13|O|path|line>> for removed (old) lines.
+            - In each finding.location, copy an existing anchor id exactly (e.g., A#12) and set anchorSide to "new" for N or "old" for O.
+            - Do NOT invent anchors or compute line numbers; only use anchors present in the diff.
+            - If text appears on both removed and new/context lines, prefer the new/context (N) anchor.
             """;
 }
