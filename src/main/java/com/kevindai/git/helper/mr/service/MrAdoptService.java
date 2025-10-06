@@ -1,6 +1,11 @@
 package com.kevindai.git.helper.mr.service;
 
-import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.Comparator;
+import java.util.List;
+
 import com.kevindai.git.helper.entity.MrAnalysisDetailEntity;
 import com.kevindai.git.helper.entity.MrInfoEntity;
 import com.kevindai.git.helper.mr.dto.gitlab.MrVersion;
@@ -10,12 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
-import java.util.Comparator;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -93,7 +92,11 @@ public class MrAdoptService {
             if (sl == null || !StringUtils.hasText(lt)) {
                 throw new IllegalStateException("Missing anchor and lineType/startLine for detail: " + detailId);
             }
-            if ("new_line".equals(lt)) newLine = sl; else if ("old_line".equals(lt)) oldLine = sl; else {
+            if ("new_line".equals(lt)) {
+                newLine = sl;
+            } else if ("old_line".equals(lt)) {
+                oldLine = sl;
+            } else {
                 throw new IllegalStateException("Unsupported lineType: " + lt);
             }
         }
@@ -101,11 +104,15 @@ public class MrAdoptService {
         // Enforce file state compatibility
         if (Boolean.TRUE.equals(matched.isDeleted_file())) {
             newLine = null; // cannot comment on new side for deleted files
-            if (oldLine == null) throw new IllegalStateException("Deleted file requires old_line");
+            if (oldLine == null) {
+                throw new IllegalStateException("Deleted file requires old_line");
+            }
         }
         if (Boolean.TRUE.equals(matched.isNew_file())) {
             oldLine = null; // cannot comment on old side for new files
-            if (newLine == null) throw new IllegalStateException("New file requires new_line");
+            if (newLine == null) {
+                throw new IllegalStateException("New file requires new_line");
+            }
         }
 
         gitLabService.createMrDiscussion(
@@ -127,7 +134,9 @@ public class MrAdoptService {
     }
 
     private static Instant parseTimeSafe(String iso) {
-        if (iso == null) return Instant.EPOCH;
+        if (iso == null) {
+            return Instant.EPOCH;
+        }
         try {
             return OffsetDateTime.parse(iso).toInstant();
         } catch (DateTimeParseException e) {
@@ -140,22 +149,46 @@ public class MrAdoptService {
     }
 
     static class Anchor {
-        enum Side { NEW, OLD }
-        final Side side; final String path; final int line;
-        Anchor(Side s, String p, int l) { this.side = s; this.path = p; this.line = l; }
+
+        enum Side {NEW, OLD}
+
+        final Side side;
+        final String path;
+        final int line;
+
+        Anchor(Side s, String p, int l) {
+            this.side = s;
+            this.path = p;
+            this.line = l;
+        }
+
         static Anchor parse(String anchorId) {
-            if (anchorId == null) return null;
+            if (anchorId == null) {
+                return null;
+            }
             String id = anchorId.trim();
             // Accept forms with or without surrounding markers, e.g., <<ANCHOR N:path:line>> or N:path:line
             if (id.startsWith("<<ANCHOR ") && id.endsWith(">>")) {
-                id = id.substring("<<ANCHOR ".length(), id.length()-2);
+                id = id.substring("<<ANCHOR ".length(), id.length() - 2);
             }
             String[] parts = id.split(":", 3);
-            if (parts.length != 3) return null;
-            Side side = switch (parts[0]) { case "N" -> Side.NEW; case "O" -> Side.OLD; default -> null; };
-            if (side == null) return null;
+            if (parts.length != 3) {
+                return null;
+            }
+            Side side = switch (parts[0]) {
+                case "N" -> Side.NEW;
+                case "O" -> Side.OLD;
+                default -> null;
+            };
+            if (side == null) {
+                return null;
+            }
             int line;
-            try { line = Integer.parseInt(parts[2]); } catch (Exception e) { return null; }
+            try {
+                line = Integer.parseInt(parts[2]);
+            } catch (Exception e) {
+                return null;
+            }
             return new Anchor(side, parts[1], line);
         }
     }

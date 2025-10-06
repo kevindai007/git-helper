@@ -4,7 +4,6 @@ import com.kevindai.git.helper.config.GitConfig;
 import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
 import com.kevindai.git.helper.mr.dto.gitlab.*;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -18,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GitLabService {
@@ -47,13 +45,11 @@ public class GitLabService {
                 }
             }
             if (dashIdx < 0 || dashIdx + 2 >= parts.size()) {
-                log.error("Parts: {}", parts);
                 throw new IllegalArgumentException("Invalid MR URL pattern");
             }
 
             int projectIdx = dashIdx - 1;
             if (projectIdx < 1) {
-                log.error("Parts: {}", parts);
                 throw new IllegalArgumentException("Cannot determine project path");
             }
 
@@ -87,12 +83,11 @@ public class GitLabService {
                 .body(Namespace[].class);
 
         if (namespaces == null || namespaces.length == 0) {
-            log.error("Namespaces for group {}: {}", parsedMrUrl.getGroupPath(), Arrays.toString(namespaces));
             throw new IllegalStateException("Group not found: " + parsedMrUrl.getGroupPath());
         }
 
         Optional<Namespace> exact = Arrays.stream(namespaces)
-                .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()))
+                .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()) || parsedMrUrl.getGroupPath().equals(ns.getPath()))
                 .findFirst();
         return exact.orElse(namespaces[0]).getId();
     }
@@ -105,7 +100,6 @@ public class GitLabService {
                 .body(Project[].class);
 
         if (projects == null || projects.length == 0) {
-            log.error("Projects under group {}: {}", groupId, Arrays.toString(projects));
             throw new IllegalStateException("Project not found under group: " + projectPath);
         }
 
@@ -156,12 +150,12 @@ public class GitLabService {
         form.add("position[start_sha]", startSha);
         form.add("position[new_path]", filePath);
         form.add("position[old_path]", filePath);
-//        if (newLine != null) {
-//            form.add("position[new_line]", String.valueOf(newLine));
-//        }
-//        if (oldLine != null) {
+        if (newLine != null) {
+            form.add("position[new_line]", String.valueOf(newLine));
+        }
+        if (oldLine != null) {
             form.add("position[old_line]", String.valueOf(oldLine));
-//        }
+        }
         form.add("body", body == null ? "" : body);
 
         restClient.post()
