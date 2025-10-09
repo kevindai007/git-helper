@@ -36,13 +36,12 @@ public class MrAnalyzeService {
     @Transactional
     public MrAnalyzeResponse analyzeMr(MrAnalyzeRequest req) {
         var parsedUrl = gitLabService.parseMrUrl(req.getMrUrl());
-        // Resolve token by group full path (ParsedMrUrl.projectFullPath holds the group hierarchy)
-        String groupFullPath = parsedUrl.getProjectFullPath();
+        // Resolve token by group full path
+        String groupFullPath = parsedUrl.getGroupFullPath();
         String token = gitTokenService.resolveTokenForGroup(groupFullPath);
         gitLabRequestContext.setGroupFullPath(groupFullPath);
         gitLabRequestContext.setToken(token);
-        long groupId = gitLabService.fetchGroupId(parsedUrl);
-        long projectId = gitLabService.fetchProjectId(groupId, parsedUrl.getProjectPath());
+        long projectId = gitLabService.resolveProjectId(groupFullPath, parsedUrl.getProjectPath());
         MrDetail mrDetail = gitLabService.fetchMrDetails(projectId, parsedUrl.getMrId());
         if (mrDetail == null) {
             throw new IllegalArgumentException("Cannot find MR details for MR ID: " + parsedUrl.getMrId());

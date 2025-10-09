@@ -3,16 +3,15 @@ package com.kevindai.git.helper.mr.service;
 import com.kevindai.git.helper.config.GitConfig;
 import com.kevindai.git.helper.mr.dto.ParsedMrUrl;
 import com.kevindai.git.helper.mr.dto.gitlab.*;
+import com.kevindai.git.helper.mr.util.GitLabUrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
-import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -25,60 +24,15 @@ public class GitLabService {
 
     private final GitConfig gitConfig;
     private final RestClient restClient;
+    private final GitLabUrlParser urlParser;
 
-    // java
+    // Centralized MR URL parsing
     public ParsedMrUrl parseMrUrl(String mrUrl) {
-        // Example URL: https://gitlab.com/group/subgroup/project/-/merge_requests/123
-        try {
-            URI uri = URI.create(mrUrl.trim());
-            String rawPath = uri.getPath();
-            if (!StringUtils.hasText(rawPath)) {
-                throw new IllegalArgumentException("Empty path");
-            }
-            List<String> parts = Arrays.stream(rawPath.split("/"))
-                    .filter(StringUtils::hasText)
-                    .toList();
-
-            int dashIdx = -1;
-            for (int i = 0; i < parts.size() - 2; i++) {
-                if ("-".equals(parts.get(i)) && "merge_requests".equals(parts.get(i + 1))) {
-                    dashIdx = i;
-                    break;
-                }
-            }
-            if (dashIdx < 0 || dashIdx + 2 >= parts.size()) {
-                log.error("Parts: {}", parts);
-                throw new IllegalArgumentException("Invalid MR URL pattern");
-            }
-
-            int projectIdx = dashIdx - 1;
-            if (projectIdx < 1) {
-                log.error("Parts: {}", parts);
-                throw new IllegalArgumentException("Cannot determine project path");
-            }
-
-            int mrId = Integer.parseInt(parts.get(dashIdx + 2));
-            String projectPath = parts.get(projectIdx);
-            List<String> groupSegments = parts.subList(0, projectIdx);
-            if (groupSegments.isEmpty()) {
-                throw new IllegalArgumentException("Group path missing");
-            }
-
-            String projectFullPath = String.join("/", groupSegments); // full group hierarchy (no leading slash)
-            String groupPath = groupSegments.get(groupSegments.size() - 1); // immediate parent only
-
-            ParsedMrUrl parsed = new ParsedMrUrl();
-            parsed.setGroupPath(groupPath);
-            parsed.setProjectPath(projectPath);
-            parsed.setProjectFullPath(projectFullPath);
-            parsed.setMrId(mrId);
-            return parsed;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to parse MR URL: " + e.getMessage(), e);
-        }
+        return urlParser.parseExistingMrUrl(mrUrl);
     }
 
 
+    @Deprecated
     public long fetchGroupId(ParsedMrUrl parsedMrUrl) {
         Namespace[] namespaces = restClient.get()
                 .uri(gitConfig.getUrl() + "/namespaces?search={q}", Map.of("q", parsedMrUrl.getGroupPath()))
@@ -92,11 +46,15 @@ public class GitLabService {
         }
 
         Optional<Namespace> exact = Arrays.stream(namespaces)
-                .filter(ns -> parsedMrUrl.getProjectFullPath().equals(ns.getFull_path()))
+                .filter(ns -> {
+                    String expected = parsedMrUrl.getGroupFullPath() != null ? parsedMrUrl.getGroupFullPath() : parsedMrUrl.getProjectFullPath();
+                    return expected != null && expected.equals(ns.getFull_path());
+                })
                 .findFirst();
         return exact.orElse(namespaces[0]).getId();
     }
 
+    @Deprecated
     public long fetchProjectId(long groupId, String projectPath) {
         Project[] projects = restClient.get()
                 .uri(gitConfig.getUrl() + "/groups/{gid}/projects?search={q}", Map.of("gid", groupId, "q", projectPath))
@@ -113,6 +71,36 @@ public class GitLabService {
                 .filter(p -> projectPath.equals(p.getPath()) || projectPath.equals(p.getName()))
                 .findFirst();
         return exact.orElse(projects[0]).getId();
+    }
+
+    /**
+     * Resolve project ID using full path, avoiding group+search ambiguity.
+     * Equivalent to GET /projects/{urlencoded group/path/project} in GitLab API.
+     */
+    public long resolveProjectId(String groupFullPath, String projectPath) {
+        String full = (groupFullPath == null || groupFullPath.isBlank()) ? projectPath : groupFullPath + "/" + projectPath;
+        try {
+            String encoded = java.net.URLEncoder.encode(full, java.nio.charset.StandardCharsets.UTF_8);
+            Project project = restClient.get()
+                    .uri(gitConfig.getUrl() + "/projects/{full}", Map.of("full", encoded))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(Project.class);
+            if (project == null) {
+                throw new IllegalStateException("Project not found by full path: " + full);
+            }
+            return project.getId();
+        } catch (Exception e) {
+            // Fallback: try group+search if full path resolution fails
+            log.warn("Full-path project resolution failed for {}: {}. Falling back to group+search.", full, e.getMessage());
+            String groupPathOnly = groupFullPath == null ? null : (groupFullPath.contains("/") ? groupFullPath.substring(groupFullPath.lastIndexOf('/') + 1) : groupFullPath);
+            ParsedMrUrl pmu = new ParsedMrUrl();
+            pmu.setGroupFullPath(groupFullPath);
+            pmu.setProjectFullPath(groupFullPath);
+            pmu.setGroupPath(groupPathOnly);
+            long groupId = fetchGroupId(pmu);
+            return fetchProjectId(groupId, projectPath);
+        }
     }
 
     public MrDetail fetchMrDetails(long projectId, int mrId) {

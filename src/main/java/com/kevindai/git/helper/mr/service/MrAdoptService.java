@@ -40,8 +40,8 @@ public class MrAdoptService {
 
         // Resolve token by parsing group path from MR URL
         var parsedUrl = gitLabService.parseMrUrl(mrInfo.getWebUrl());
-        String token = gitTokenService.resolveTokenForGroup(parsedUrl.getProjectFullPath());
-        gitLabRequestContext.setGroupFullPath(parsedUrl.getProjectFullPath());
+        String token = gitTokenService.resolveTokenForGroup(parsedUrl.getGroupFullPath());
+        gitLabRequestContext.setGroupFullPath(parsedUrl.getGroupFullPath());
         gitLabRequestContext.setToken(token);
 
         List<MrVersion> versions = gitLabService.fetchMrVersions(projectId, mrId);
