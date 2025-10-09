@@ -1,7 +1,5 @@
 package com.kevindai.git.helper.mr.service;
 
-import com.kevindai.git.helper.mr.dto.AnalysisStatus;
-import com.kevindai.git.helper.mr.dto.MrDescribeResponse;
 import com.kevindai.git.helper.mr.dto.gitlab.CompareResponse;
 import com.kevindai.git.helper.mr.dto.gitlab.MrDiff;
 import com.kevindai.git.helper.mr.prompt.MrDescriptionPrompt;
@@ -11,8 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import reactor.core.publisher.Flux;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -26,42 +26,32 @@ public class MrDescribeService {
     private final GitLabRequestContext gitLabRequestContext;
     private final GitLabUrlParser urlParser;
 
-    public MrDescribeResponse generateDescription(String mrNewUrl) {
-        // 1) Parse project/group context and query params
-        var ctx = urlParser.parseNewMrUrl(mrNewUrl);
-
-        // Resolve token by group full path when possible
-        if (StringUtils.hasText(ctx.groupFullPath())) {
-            String token = gitTokenService.resolveTokenForGroup(ctx.groupFullPath());
-            gitLabRequestContext.setGroupFullPath(ctx.groupFullPath());
-            gitLabRequestContext.setToken(token);
-        }
-
-        // 2) Call compare API
-        CompareResponse compare = gitLabService.compare(ctx.projectId(), ctx.sourceBranch(), ctx.targetBranch(), true, true);
-        List<MrDiff> diffs = Optional.ofNullable(compare.getDiffs()).orElse(List.of());
-
-        // 3) Merge diffs into a single annotated content block
-        String merged = addressableDiffBuilder.buildAnnotatedWithIndex(diffs).getContent();
-        if (!StringUtils.hasText(merged)) {
-            merged = mergePlain(diffs);
-        }
-
-        // 4) Send to LLM to produce description
-        String description = chatClient
-                .prompt(MrDescriptionPrompt.SYSTEM_PROMPT)
-                .user(merged)
-                .call()
-                .chatResponse().getResults().getFirst().getOutput().getText();
-
-        return MrDescribeResponse.builder()
-                .status(AnalysisStatus.SUCCESS)
-                .mrNewUrl(mrNewUrl)
-                .projectId(ctx.projectId())
-                .sourceBranch(ctx.sourceBranch())
-                .targetBranch(ctx.targetBranch())
-                .description(description)
-                .build();
+    public Flux<String> streamDescription(String mrNewUrl) {
+        return Flux.defer(() -> {
+            try {
+                var ctx = urlParser.parseNewMrUrl(mrNewUrl);
+                if (StringUtils.hasText(ctx.groupFullPath())) {
+                    String token = gitTokenService.resolveTokenForGroup(ctx.groupFullPath());
+                    gitLabRequestContext.setGroupFullPath(ctx.groupFullPath());
+                    gitLabRequestContext.setToken(token);
+                }
+                CompareResponse compare = gitLabService.compare(ctx.projectId(), ctx.sourceBranch(), ctx.targetBranch(), true, true);
+                List<MrDiff> diffs = Optional.ofNullable(compare.getDiffs()).orElse(List.of());
+                String merged = addressableDiffBuilder.buildAnnotatedWithIndex(diffs).getContent();
+                if (!StringUtils.hasText(merged)) {
+                    merged = mergePlain(diffs);
+                }
+                // Stream tokens/content from LLM
+                return chatClient
+                        .prompt(MrDescriptionPrompt.SYSTEM_PROMPT)
+                        .user(merged)
+                        .stream()
+                        .content();
+            } catch (Exception e) {
+                log.error("streamDescription setup failed: {}", e.getMessage(), e);
+                return Flux.error(e);
+            }
+        });
     }
 
     private String mergePlain(List<MrDiff> diffs) {
