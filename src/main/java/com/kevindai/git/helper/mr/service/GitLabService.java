@@ -140,6 +140,22 @@ public class GitLabService {
         return versions == null ? List.of() : Arrays.asList(versions);
     }
 
+    public CompareResponse compare(long projectId, String from, String to,
+                                                                         boolean unidiff, boolean straight) {
+        return restClient.get()
+                .uri(gitConfig.getUrl() + "/projects/{pid}/repository/compare?from={from}&to={to}&unidiff={ud}&straight={st}",
+                        Map.of(
+                                "pid", projectId,
+                                "from", from,
+                                "to", to,
+                                "ud", String.valueOf(unidiff),
+                                "st", String.valueOf(straight)
+                        ))
+                .headers(h -> h.setAccept(java.util.List.of(MediaType.APPLICATION_JSON)))
+                .retrieve()
+                .body(com.kevindai.git.helper.mr.dto.gitlab.CompareResponse.class);
+    }
+
     public void createMrDiscussion(long projectId,
                                    int mrId,
                                    String baseSha,

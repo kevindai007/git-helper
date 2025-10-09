@@ -1,0 +1,11 @@
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: ${OPENAI_CHAT_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${CHAT_MODEL:gpt-4o-mini}
+server:
+  servlet:
+    context-path:
