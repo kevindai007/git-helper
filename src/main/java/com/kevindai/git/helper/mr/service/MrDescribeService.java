@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -46,7 +47,16 @@ public class MrDescribeService {
                         .prompt(MrDescriptionPrompt.SYSTEM_PROMPT)
                         .user(merged)
                         .stream()
-                        .content();
+                        .content()
+                        // map 4xx/5xx into textual SSE so the writer doesn't try to serialize a map
+                        .onErrorResume(WebClientResponseException.class, e -> {
+                            log.error("LLM call failed [{}]: {}", e.getStatusCode(), e.getResponseBodyAsString());
+                            return Flux.just("LLM request failed: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+                        })
+                        .onErrorResume(Throwable.class, e -> {
+                            log.error("LLM call failed: {}", e.getMessage(), e);
+                            return Flux.just("LLM request failed: " + e.getMessage());
+                        });
             } catch (Exception e) {
                 log.error("streamDescription setup failed: {}", e.getMessage(), e);
                 return Flux.error(e);

@@ -1,7 +1,7 @@
 spring:
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${OPENAI_API_KEY:realKey}
 #      base-url: ${OPENAI_CHAT_BASE_URL:https://llm.waha.ai/qwen3-30b-thinking}
       base-url: ${OPENAI_CHAT_BASE_URL:http://llm.waha.ai/qwen3-30b-insturct}
       chat:
